@@ -1,0 +1,9 @@
+{
+  "name": "TNFFM Community Rankings",
+  "short_name": "TNFFM Rankings",
+  "description": "Tamilnadu Free Fire Max Esports community rankings.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050507",
+  "theme_color": "#f8c94c"
+}
