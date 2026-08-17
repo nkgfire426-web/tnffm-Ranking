@@ -16,9 +16,44 @@ async function fetchFromLocalFile(): Promise<RawTeam[] | null> {
   }
 }
 
+async function fetchFromGoogleAppsScript(): Promise<RawTeam[] | null> {
+  const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+  if (!webhookUrl) return null;
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "GET",
+      cache: "no-store",
+      headers: { Accept: "application/json" }
+    });
+
+    if (!response.ok) {
+      throw new Error(`Google Apps Script returned ${response.status}`);
+    }
+
+    const payload = await response.json();
+    const teams = Array.isArray(payload) ? payload : payload?.teams;
+
+    if (!Array.isArray(teams)) {
+      throw new Error("Google Apps Script response does not contain teams.");
+    }
+
+    return teams as RawTeam[];
+  } catch (error) {
+    console.error("Google Sheets read error:", error);
+    return null;
+  }
+}
+
 export async function getRankedTeams(): Promise<RankedTeam[]> {
   try {
-    const teams = (await fetchFromLocalFile()) || sampleTeams;
+    // Google Sheet is the primary source of truth.
+    // Local JSON is retained only as a safe fallback if the Sheet is unavailable.
+    const teams =
+      (await fetchFromGoogleAppsScript()) ||
+      (await fetchFromLocalFile()) ||
+      sampleTeams;
+
     return rankTeams(teams.length ? teams : sampleTeams);
   } catch (error) {
     console.error(error);
@@ -71,7 +106,12 @@ async function getServiceAccountAccessToken(serviceAccountJson: string) {
   return payload.access_token as string;
 }
 
-export async function updateGoogleSheetValues(sheetId: string, range: string, rows: Array<string[]>, serviceAccountJson: string) {
+export async function updateGoogleSheetValues(
+  sheetId: string,
+  range: string,
+  rows: Array<string[]>,
+  serviceAccountJson: string
+) {
   const token = await getServiceAccountAccessToken(serviceAccountJson);
 
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
@@ -79,7 +119,10 @@ export async function updateGoogleSheetValues(sheetId: string, range: string, ro
 
   const resp = await fetch(url, {
     method: "PUT",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
     body: JSON.stringify(body)
   });
 
