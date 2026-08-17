@@ -1,36 +1,68 @@
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 
 export async function POST(request: NextRequest) {
-  const payload = (await request.json()) as { password?: string; teams?: any[]; events?: any[]; collaborators?: any[] };
-  const expected = process.env.ADMIN_PASSWORD || "admin123";
-
-  if (payload.password !== expected) {
-    return NextResponse.json({ ok: false, message: "Invalid password." }, { status: 401 });
-  }
-
-  const dataDirectory = path.join(process.cwd(), "data");
-  await mkdir(dataDirectory, { recursive: true });
-
   try {
-    if (Array.isArray(payload.teams)) {
-      await writeFile(path.join(dataDirectory, "teams.json"), JSON.stringify(payload.teams, null, 2), "utf8");
+    const payload = (await request.json()) as {
+      password?: string;
+      teams?: unknown[];
+      events?: unknown[];
+      collaborators?: unknown[];
+    };
+
+    const expected = process.env.ADMIN_PASSWORD;
+
+    if (!expected || payload.password !== expected) {
+      return NextResponse.json(
+        { ok: false, message: "Invalid password." },
+        { status: 401 }
+      );
     }
-    if (Array.isArray(payload.events)) {
-      await writeFile(path.join(dataDirectory, "events.json"), JSON.stringify(payload.events, null, 2), "utf8");
+
+    const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+
+    if (!webhookUrl) {
+      return NextResponse.json(
+        { ok: false, message: "Google Sheets webhook is not configured." },
+        { status: 503 }
+      );
     }
-    if (Array.isArray(payload.collaborators)) {
-      await writeFile(path.join(dataDirectory, "collaborators.json"), JSON.stringify(payload.collaborators, null, 2), "utf8");
+
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({
+        teams: Array.isArray(payload.teams) ? payload.teams : [],
+        events: Array.isArray(payload.events) ? payload.events : [],
+        collaborators: Array.isArray(payload.collaborators)
+          ? payload.collaborators
+          : []
+      })
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || result.ok === false) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: result.message || "Google Sheet update failed."
+        },
+        { status: 502 }
+      );
     }
 
     revalidatePath("/");
     revalidatePath("/admin");
     revalidatePath("/collaborators");
 
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    return NextResponse.json({ ok: false, message: String(err) }, { status: 500 });
+    return NextResponse.json({ ok: true, googleSheets: true });
+  } catch (error) {
+    console.error("Google Sheets save error:", error);
+    return NextResponse.json(
+      { ok: false, message: "Unable to update Google Sheet." },
+      { status: 500 }
+    );
   }
 }
