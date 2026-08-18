@@ -16,12 +16,12 @@ function normalizeImageUrl(src: string) {
 
   const driveFile = value.match(/drive\.google\.com\/file\/d\/([^/]+)/i);
   if (driveFile?.[1]) {
-    return `https://drive.google.com/uc?export=view&id=${driveFile[1]}`;
+    return `https://drive.google.com/thumbnail?id=${driveFile[1]}&sz=w1000`;
   }
 
   const driveOpen = value.match(/[?&]id=([^&]+)/i);
   if (/drive\.google\.com/i.test(value) && driveOpen?.[1]) {
-    return `https://drive.google.com/uc?export=view&id=${driveOpen[1]}`;
+    return `https://drive.google.com/thumbnail?id=${driveOpen[1]}&sz=w1000`;
   }
 
   return value;
