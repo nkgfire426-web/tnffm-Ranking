@@ -19,7 +19,31 @@ export const sampleEvents: TrackedEvent[] = [
   { name: "Official Free Fire MAX Qualifier", organizer: "Official Match", teams: 48, prize: "Official", status: "Official", counted: "Finalist Bonus", date: "2026-08-01", notes: "Official finalist bonus applied." }
 ];
 
+async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
+  const url = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+  if (!url) return null;
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      cache: "no-store",
+      headers: { Accept: "application/json" }
+    });
+    if (!response.ok) return null;
+
+    const payload = await response.json();
+    const events = payload?.events;
+    return Array.isArray(events) ? (events as TrackedEvent[]) : null;
+  } catch (error) {
+    console.error("Google Sheets events read error:", error);
+    return null;
+  }
+}
+
 export async function getTrackedEvents(): Promise<TrackedEvent[]> {
+  const googleEvents = await fetchEventsFromGoogleSheets();
+  if (googleEvents) return googleEvents;
+
   try {
     const filePath = path.join(process.cwd(), "data", "events.json");
     const contents = await readFile(filePath, "utf8");
