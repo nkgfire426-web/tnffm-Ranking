@@ -1,41 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
-  const payload = (await request.json()) as { password?: string; teams?: unknown };
-  const expected = process.env.ADMIN_PASSWORD || "admin123";
+  try {
+    const payload = (await request.json()) as { password?: string; teams?: unknown[] };
+    const expected = process.env.ADMIN_PASSWORD;
 
-  if (payload.password !== expected) {
-    return NextResponse.json({ ok: false }, { status: 401 });
-  }
-
-  const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
-  if (!webhookUrl) {
-    // If webhook not configured, try service account + Sheets API
-    const sheetId = process.env.GOOGLE_SHEETS_ID;
-    const sa = process.env.GOOGLE_SERVICE_ACCOUNT;
-    const range = process.env.GOOGLE_SHEETS_RANGE || "Teams!A1:Q";
-
-    if (sheetId && sa) {
-      try {
-        const teams = Array.isArray(payload.teams) ? (payload.teams as any[]) : [];
-        // Lazy import to avoid adding runtime deps here
-        const { teamsToSheetRows, updateGoogleSheetValues } = await import("@/lib/google-sheets");
-        const rows = teamsToSheetRows(teams);
-        await updateGoogleSheetValues(sheetId, range, rows, sa);
-        return NextResponse.json({ ok: true });
-      } catch (err) {
-        return NextResponse.json({ ok: false, message: String(err) }, { status: 502 });
-      }
+    if (!expected || payload.password !== expected) {
+      return NextResponse.json({ ok: false, message: "Invalid password." }, { status: 401 });
     }
 
-    return NextResponse.json({ ok: false, message: "GOOGLE_SHEETS_WEBHOOK_URL or service account not configured." }, { status: 501 });
+    const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+    if (!webhookUrl) {
+      return NextResponse.json({ ok: false, message: "Google Sheets webhook is not configured." }, { status: 503 });
+    }
+
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({
+        teams: Array.isArray(payload.teams) ? payload.teams : [],
+        events: [],
+        collaborators: []
+      })
+    });
+
+    const result = await response.json().catch(() => ({}));
+    return NextResponse.json(
+      { ok: response.ok && result.ok !== false, message: result.message || (response.ok ? "Google Sheet synced." : "Google Sheet sync failed.") },
+      { status: response.ok && result.ok !== false ? 200 : 502 }
+    );
+  } catch (error) {
+    console.error("Google Sheets sync error:", error);
+    return NextResponse.json({ ok: false, message: "Unable to sync Google Sheet." }, { status: 500 });
   }
-
-  const response = await fetch(webhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ teams: payload.teams })
-  });
-
-  return NextResponse.json({ ok: response.ok }, { status: response.ok ? 200 : 502 });
 }
