@@ -7,7 +7,9 @@ import { RankingsInsights } from "@/components/RankingsInsights";
 import { StatsCards } from "@/components/StatsCards";
 import { getRankedTeams } from "@/lib/google-sheets";
 
-export const revalidate = 300;
+// The homepage reads live Google Sheets data and must be rendered dynamically.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function Home() {
   const teams = await getRankedTeams();
