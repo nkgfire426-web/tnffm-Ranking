@@ -6,6 +6,10 @@ export const metadata = {
   description: "Verified and official events tracked for TNFFM Community Rankings."
 };
 
+// Tracked events are read from live Google Sheets data.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function TrackedEventsPage() {
   const events = await getTrackedEvents();
 
