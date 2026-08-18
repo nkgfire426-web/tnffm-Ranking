@@ -11,6 +11,7 @@
  *
  * The spreadsheet will contain three sheets:
  * Teams, Events, Collaborators.
+ * Logo uploads are stored in Google Drive and the public image URL is saved in the sheet.
  */
 
 const TEAM_HEADERS = [
@@ -36,6 +37,10 @@ function doPost(e) {
     const body = JSON.parse(e.postData.contents || "{}");
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
+    if (body.action === "uploadLogo") {
+      return uploadLogo_(body);
+    }
+
     if (Array.isArray(body.teams)) {
       writeTeams_(ss, body.teams);
     }
@@ -51,6 +56,31 @@ function doPost(e) {
   } catch (err) {
     return json({ ok: false, message: String(err && err.message ? err.message : err) });
   }
+}
+
+function uploadLogo_(body) {
+  if (!body.dataUrl || typeof body.dataUrl !== "string") {
+    return json({ ok: false, message: "Logo data is missing." });
+  }
+
+  const match = body.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) {
+    return json({ ok: false, message: "Invalid image data." });
+  }
+
+  const mimeType = match[1];
+  const bytes = Utilities.base64Decode(match[2]);
+  const safeName = String(body.fileName || "tnffm-logo")
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .slice(0, 80);
+
+  const blob = Utilities.newBlob(bytes, mimeType, safeName);
+  const file = DriveApp.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  const id = file.getId();
+  const url = "https://drive.google.com/uc?export=view&id=" + encodeURIComponent(id);
+  return json({ ok: true, url: url, fileId: id });
 }
 
 function writeTeams_(ss, teams) {
