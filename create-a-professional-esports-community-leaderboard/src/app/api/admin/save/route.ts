@@ -11,19 +11,20 @@ export async function POST(request: NextRequest) {
     };
 
     const expected = process.env.ADMIN_PASSWORD;
-
     if (!expected || payload.password !== expected) {
-      return NextResponse.json(
-        { ok: false, message: "Invalid password." },
-        { status: 401 }
-      );
+      return NextResponse.json({ ok: false, message: "Invalid password." }, { status: 401 });
     }
 
-    const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+    const data = {
+      teams: Array.isArray(payload.teams) ? payload.teams : [],
+      events: Array.isArray(payload.events) ? payload.events : [],
+      collaborators: Array.isArray(payload.collaborators) ? payload.collaborators : []
+    };
 
+    const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
     if (!webhookUrl) {
       return NextResponse.json(
-        { ok: false, message: "Google Sheets webhook is not configured." },
+        { ok: false, message: "Google Sheets is not configured. Add GOOGLE_SHEETS_WEBHOOK_URL in Vercel." },
         { status: 503 }
       );
     }
@@ -32,23 +33,13 @@ export async function POST(request: NextRequest) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       cache: "no-store",
-      body: JSON.stringify({
-        teams: Array.isArray(payload.teams) ? payload.teams : [],
-        events: Array.isArray(payload.events) ? payload.events : [],
-        collaborators: Array.isArray(payload.collaborators)
-          ? payload.collaborators
-          : []
-      })
+      body: JSON.stringify(data)
     });
 
     const result = await response.json().catch(() => ({}));
-
     if (!response.ok || result.ok === false) {
       return NextResponse.json(
-        {
-          ok: false,
-          message: result.message || "Google Sheet update failed."
-        },
+        { ok: false, message: result.message || "Google Sheet update failed." },
         { status: 502 }
       );
     }
@@ -60,9 +51,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, googleSheets: true });
   } catch (error) {
     console.error("Google Sheets save error:", error);
-    return NextResponse.json(
-      { ok: false, message: "Unable to update Google Sheet." },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, message: "Unable to update Google Sheet." }, { status: 500 });
   }
 }
