@@ -1,3 +1,5 @@
+"use client";
+
 /* eslint-disable @next/next/no-img-element */
 import { Trophy } from "lucide-react";
 
@@ -12,7 +14,6 @@ function normalizeImageUrl(src: string) {
   const value = String(src || "").trim();
   if (!value) return "";
 
-  // Accept normal Google Drive share links and convert them to a direct image URL.
   const driveFile = value.match(/drive\.google\.com\/file\/d\/([^/]+)/i);
   if (driveFile?.[1]) {
     return `https://drive.google.com/uc?export=view&id=${driveFile[1]}`;
