@@ -13,11 +13,10 @@ export function Header() {
               <MoreVertical className="h-5 w-5" />
             </button>
             <div className="invisible absolute left-0 top-12 w-64 translate-y-2 rounded-lg border border-white/10 bg-black/95 p-2 opacity-0 shadow-glow backdrop-blur-xl transition group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
-                <MenuLink href="/tracked-events" icon={<CalendarDays className="h-4 w-4" />} label="Tracked Events" />
-                <MenuLink href="/team-details" icon={<Crown className="h-4 w-4" />} label="Team Details" />
-                <MenuLink href="/collaborators" icon={<Crown className="h-4 w-4" />} label="Collaborators" />
-                <MenuLink href="/rank-system" icon={<ListChecks className="h-4 w-4" />} label="Rank System" />
-                <MenuLink href="/rules" icon={<ScrollText className="h-4 w-4" />} label="Rules and Regulations" />
+              <MenuLink href="/tracked-events" icon={<CalendarDays className="h-4 w-4" />} label="Tracked Events" />
+              <MenuLink href="/team-details" icon={<Crown className="h-4 w-4" />} label="Team Details" />
+              <MenuLink href="/rank-system" icon={<ListChecks className="h-4 w-4" />} label="Rank System" />
+              <MenuLink href="/rules" icon={<ScrollText className="h-4 w-4" />} label="Rules and Regulations" />
             </div>
           </div>
           <Link href="/" className="flex items-center gap-3">
@@ -33,9 +32,6 @@ export function Header() {
         <div className="flex items-center gap-2">
           <Link href="/#leaderboard" className="hidden rounded-lg px-4 py-2 text-sm text-slate-300 transition hover:text-gold sm:inline-flex">
             Leaderboard
-          </Link>
-          <Link href="/collaborators" className="hidden rounded-lg px-4 py-2 text-sm text-slate-300 transition hover:text-gold sm:inline-flex">
-            Collaborators
           </Link>
           <Link href="/admin" className="inline-flex items-center gap-2 rounded-lg border border-gold/30 px-4 py-2 text-sm font-semibold text-gold transition hover:bg-gold hover:text-black">
             <LayoutDashboard className="h-4 w-4" />
