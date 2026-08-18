@@ -7,6 +7,10 @@ export const metadata = {
   description: "Sponsors and partners supporting TNFFM community events"
 };
 
+// Collaborators are read from live Google Sheets data.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function CollaboratorsPage() {
   const collaborators = await getCollaborators();
 
