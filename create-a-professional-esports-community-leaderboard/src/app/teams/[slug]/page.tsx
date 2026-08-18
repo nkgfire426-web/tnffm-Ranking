@@ -1,14 +1,11 @@
 import { notFound } from "next/navigation";
 import { Header } from "@/components/Header";
 import { TeamProfile } from "@/components/TeamProfile";
-import { getRankedTeams, getTeamBySlug } from "@/lib/google-sheets";
+import { getTeamBySlug } from "@/lib/google-sheets";
 
-export const revalidate = 300;
-
-export async function generateStaticParams() {
-  const teams = await getRankedTeams();
-  return teams.map((team) => ({ slug: team.slug }));
-}
+// Team profiles read live Google Sheets data, so they must be rendered dynamically.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
