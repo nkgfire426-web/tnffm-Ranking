@@ -51,18 +51,37 @@ function uploadLogo_(body) {
 function registerTeam_(ss, body) {
   const username = String(body.username || "").trim().toLowerCase();
   const passwordHash = String(body.passwordHash || "").trim();
-  const teamSlug = String(body.teamSlug || "").trim();
+  const requestedSlug = String(body.teamSlug || "").trim();
+  const requestedTeamName = String(body.teamName || "").trim();
   const email = String(body.email || "").trim();
   if (!/^[a-z0-9._-]{4,32}$/.test(username)) return json({ ok: false, message: "Username must be 4-32 characters and use letters, numbers, dot, underscore or hyphen." });
-  if (!passwordHash || !teamSlug) return json({ ok: false, message: "Username, password and team are required." });
+  if (!passwordHash) return json({ ok: false, message: "Username and password are required." });
+  if (!requestedSlug && !requestedTeamName) return json({ ok: false, message: "Select an existing team or enter a new team name." });
+
   const accounts = getOrCreateSheet_(ss, "TeamAccounts");
   ensureHeaders_(accounts, ACCOUNT_HEADERS);
   const rows = accounts.getDataRange().getValues();
   for (let i = 1; i < rows.length; i++) if (String(rows[i][0] || "").toLowerCase() === username) return json({ ok: false, message: "Username is already registered." });
-  const team = readTeams_(ss).find(function (t) { return t.slug === teamSlug; });
-  if (!team) return json({ ok: false, message: "Team not found." });
+
+  const teams = readTeams_(ss);
+  let teamSlug = requestedSlug;
+  let teamName = requestedTeamName;
+
+  if (!teamSlug && teamName) {
+    teamSlug = teamName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50);
+    if (!teamSlug) return json({ ok: false, message: "Please enter a valid team name." });
+    if (teams.some(function (t) { return t.slug === teamSlug; })) return json({ ok: false, message: "A team with this name already exists. Please select it instead." });
+    teams.push({ teamName: teamName, slug: teamSlug, rank: 0, previousRank: 0, communityPoints: 0, badge: "", logoUrl: "", bannerUrl: "", kills: 0, booyahs: 0, championships: 0, runnerUp: 0, secondRunnerUp: 0, top3Finishes: 0, finalistFinishes: 0, officialMatchFinalists: 0, eventsPlayed: 0, grandFinals: 0, winRate: 0, killRatio: 0, players: 0, roster: [], status: "Active", description: "", lastUpdated: new Date().toISOString() });
+    writeTeams_(ss, teams);
+  } else {
+    const team = teams.find(function (t) { return t.slug === teamSlug; });
+    if (!team) return json({ ok: false, message: "Team not found." });
+    teamName = team.teamName;
+  }
+
   accounts.appendRow([username, passwordHash, teamSlug, email, "Active", new Date().toISOString(), new Date().toISOString()]);
-  return json({ ok: true, status: "Active", username: username, teamSlug: teamSlug, message: "Team account created successfully. You can login now." });
+  SpreadsheetApp.flush();
+  return json({ ok: true, status: "Active", username: username, teamSlug: teamSlug, teamName: teamName, message: "Team account created successfully. You can login now." });
 }
 
 function loginTeam_(ss, body) {
@@ -73,9 +92,7 @@ function loginTeam_(ss, body) {
   const values = sheet.getDataRange().getValues();
   for (let i = 1; i < values.length; i++) {
     const r = values[i];
-    if (String(r[0] || "").toLowerCase() === username && String(r[1] || "") === passwordHash) {
-      return json({ ok: true, username: username, teamSlug: String(r[2] || ""), email: String(r[3] || "") });
-    }
+    if (String(r[0] || "").toLowerCase() === username && String(r[1] || "") === passwordHash) return json({ ok: true, username: username, teamSlug: String(r[2] || ""), email: String(r[3] || "") });
   }
   return json({ ok: false, message: "Invalid username or password." });
 }
@@ -116,7 +133,7 @@ function findAccount_(ss, username) {
   const sheet = ss.getSheetByName("TeamAccounts");
   if (!sheet || sheet.getLastRow() < 2) return null;
   const values = sheet.getDataRange().getValues();
-  for (let i = 1; i < values.length; i++) if (String(values[i][0] || "").toLowerCase() === username) return { username: String(values[i][0]), teamSlug: String(values[i][2] || ""), email: String(values[i][3] || ""), status: String(values[i][4] || "Active") };
+  for (let i = 1; i < values.length; i++) if (String(values[i][0] || "").toLowerCase() === username) return { username: String(values[i][0]), teamSlug: String(values[i][2] || ""), email: String(values[i][3] || "") };
   return null;
 }
 
