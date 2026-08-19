@@ -11,21 +11,54 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
   const username = String(body.username || "").trim().toLowerCase();
   const password = String(body.password || "");
-  const teamSlug = String(body.teamSlug || "").trim();
   const teamName = String(body.teamName || "").trim();
   const email = String(body.email || "").trim();
-  if (!/^[a-z0-9._-]{4,32}$/.test(username)) return NextResponse.json({ ok: false, message: "Username must be 4-32 characters and use letters, numbers, dot, underscore or hyphen." }, { status: 400 });
-  if (password.length < 8) return NextResponse.json({ ok: false, message: "Password must be at least 8 characters." }, { status: 400 });
-  if (!teamSlug && !teamName) return NextResponse.json({ ok: false, message: "Select an existing team or enter a new team name." }, { status: 400 });
+
+  if (!/^[a-z0-9._-]{4,32}$/.test(username)) {
+    return NextResponse.json({ ok: false, message: "Username must be 4-32 characters and use letters, numbers, dot, underscore or hyphen." }, { status: 400 });
+  }
+
+  if (password.length < 8) {
+    return NextResponse.json({ ok: false, message: "Password must be at least 8 characters." }, { status: 400 });
+  }
+
+  if (teamName.length < 2 || teamName.length > 60) {
+    return NextResponse.json({ ok: false, message: "Team name must be between 2 and 60 characters." }, { status: 400 });
+  }
+
   const webhook = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
-  if (!webhook) return NextResponse.json({ ok: false, message: "Google Sheets is not configured." }, { status: 503 });
-  const finalSlug = teamSlug || makeSlug(teamName);
-  if (!finalSlug) return NextResponse.json({ ok: false, message: "Please enter a valid team name." }, { status: 400 });
-  const response = await fetch(webhook, { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify({ action: "registerTeam", username, passwordHash: hashPassword(password), teamSlug: finalSlug, teamName, email }) });
+  if (!webhook) {
+    return NextResponse.json({ ok: false, message: "Google Sheets is not configured." }, { status: 503 });
+  }
+
+  const response = await fetch(webhook, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({
+      action: "registerTeam",
+      username,
+      passwordHash: hashPassword(password),
+      teamName,
+      email
+    })
+  });
+
   const result = await response.json().catch(() => ({}));
-  if (!response.ok || !result.ok) return NextResponse.json({ ok: false, message: result.message || "Unable to create team account." }, { status: 400 });
-  const slug = result.teamSlug || finalSlug;
-  const res = NextResponse.json({ ok: true, username, teamSlug: slug, teamName: result.teamName || teamName, message: "Team account created successfully." });
+
+  if (!response.ok || !result.ok) {
+    return NextResponse.json({ ok: false, message: result.message || "Unable to create team account." }, { status: 400 });
+  }
+
+  const slug = result.teamSlug || makeSlug(teamName);
+  const res = NextResponse.json({
+    ok: true,
+    username,
+    teamSlug: slug,
+    teamName: result.teamName || teamName,
+    message: "Team account created successfully."
+  });
+
   res.cookies.set(COOKIE_NAME, createSession(username, slug), teamCookieOptions());
   return res;
 }
