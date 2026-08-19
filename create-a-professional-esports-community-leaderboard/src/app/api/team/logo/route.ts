@@ -32,16 +32,12 @@ export async function GET(request: NextRequest) {
     if (!response.ok) return new NextResponse("Unable to load image", { status: 502 });
 
     const contentType = response.headers.get("content-type") || "";
-    const bytes = await response.arrayBuffer();
-    const looksLikeImage = contentType.startsWith("image/") ||
-      new Uint8Array(bytes.slice(0, 4)).some((byte) => byte !== 0);
+    if (!contentType.startsWith("image/")) return new NextResponse("URL is not an image", { status: 415 });
 
-    if (!looksLikeImage) return new NextResponse("URL is not an image", { status: 415 });
-
-    return new NextResponse(bytes, {
+    return new NextResponse(await response.arrayBuffer(), {
       status: 200,
       headers: {
-        "Content-Type": contentType.startsWith("image/") ? contentType : "image/png",
+        "Content-Type": contentType,
         "Cache-Control": "public, max-age=3600",
         "Access-Control-Allow-Origin": "*",
       },
