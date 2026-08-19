@@ -13,10 +13,13 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
+  min-width: 0;
+  overflow-x: hidden;
   background:
     radial-gradient(circle at 18% 8%, rgba(239, 35, 60, 0.28), transparent 28rem),
     radial-gradient(circle at 84% 4%, rgba(255, 210, 31, 0.16), transparent 26rem),
@@ -26,8 +29,39 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+img {
+  height: auto;
+}
+
+input,
+select,
+textarea {
+  min-width: 0;
+  max-width: 100%;
+}
+
+textarea {
+  resize: vertical;
 }
 
 ::selection {
@@ -47,6 +81,14 @@ select {
   color: transparent;
 }
 
+.table-scrollbar {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
 .table-scrollbar::-webkit-scrollbar {
   height: 10px;
 }
@@ -54,4 +96,111 @@ select {
 .table-scrollbar::-webkit-scrollbar-thumb {
   background: rgba(255, 210, 31, 0.38);
   border-radius: 999px;
+}
+
+@media (max-width: 640px) {
+  /* Prevent long words, URLs and team names from creating horizontal page overflow. */
+  h1,
+  h2,
+  h3,
+  h4,
+  p,
+  a,
+  span,
+  td,
+  th,
+  label {
+    overflow-wrap: anywhere;
+  }
+
+  /* Collapse multi-column Tailwind grids on small screens. */
+  [class~="grid-cols-2"],
+  [class~="grid-cols-3"],
+  [class~="grid-cols-4"],
+  [class~="grid-cols-5"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Keep common page containers inside the viewport. */
+  [class*="max-w-"] {
+    max-width: 100%;
+  }
+
+  /* Tables remain readable by scrolling horizontally instead of squeezing columns. */
+  table {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  /* Comfortable mobile controls. */
+  button,
+  [role="button"] {
+    min-height: 42px;
+  }
+
+  /* Header stays compact while preserving the login controls. */
+  header nav {
+    padding-top: 0.65rem;
+    padding-bottom: 0.65rem;
+  }
+
+  header nav > div:first-child {
+    min-width: 0;
+  }
+
+  header nav a {
+    min-width: 0;
+  }
+
+  header nav a > span:last-child {
+    min-width: 0;
+  }
+
+  header nav a > span:last-child > span:last-child {
+    display: none;
+  }
+
+  header nav .group > button {
+    padding-left: 0.7rem;
+    padding-right: 0.7rem;
+  }
+
+  /* Prevent oversized desktop padding from making cards feel cramped. */
+  main section,
+  main article {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  header nav {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  header nav > div:first-child {
+    gap: 0.5rem;
+  }
+
+  header nav > div:first-child > a {
+    gap: 0.5rem;
+  }
+
+  header nav > div:first-child > a > span:first-child {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  header nav > div:last-child .group > button {
+    font-size: 0;
+    width: 2.7rem;
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  header nav > div:last-child .group > button svg {
+    width: 1rem;
+    height: 1rem;
+  }
 }
