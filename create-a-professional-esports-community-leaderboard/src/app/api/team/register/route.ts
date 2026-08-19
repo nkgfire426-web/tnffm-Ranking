@@ -14,12 +14,13 @@ export async function POST(request: NextRequest) {
   const teamSlug = String(body.teamSlug || "").trim();
   const teamName = String(body.teamName || "").trim();
   const email = String(body.email || "").trim();
+  if (!/^[a-z0-9._-]{4,32}$/.test(username)) return NextResponse.json({ ok: false, message: "Username must be 4-32 characters and use letters, numbers, dot, underscore or hyphen." }, { status: 400 });
   if (password.length < 8) return NextResponse.json({ ok: false, message: "Password must be at least 8 characters." }, { status: 400 });
   if (!teamSlug && !teamName) return NextResponse.json({ ok: false, message: "Select an existing team or enter a new team name." }, { status: 400 });
-  if (!process.env.TEAM_AUTH_SECRET && !process.env.ADMIN_PASSWORD) return NextResponse.json({ ok: false, message: "Team authentication is not configured on the server." }, { status: 503 });
   const webhook = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
   if (!webhook) return NextResponse.json({ ok: false, message: "Google Sheets is not configured." }, { status: 503 });
   const finalSlug = teamSlug || makeSlug(teamName);
+  if (!finalSlug) return NextResponse.json({ ok: false, message: "Please enter a valid team name." }, { status: 400 });
   const response = await fetch(webhook, { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify({ action: "registerTeam", username, passwordHash: hashPassword(password), teamSlug: finalSlug, teamName, email }) });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.ok) return NextResponse.json({ ok: false, message: result.message || "Unable to create team account." }, { status: 400 });
