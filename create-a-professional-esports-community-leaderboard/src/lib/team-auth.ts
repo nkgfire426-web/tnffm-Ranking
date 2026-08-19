@@ -3,8 +3,10 @@ import { cookies } from "next/headers";
 
 const COOKIE_NAME = "tnffm_team_session";
 
+// Keep team login functional even when a dedicated Vercel secret has not been added yet.
+// TEAM_AUTH_SECRET should still be set in production for a custom signing key.
 function secret() {
-  return process.env.TEAM_AUTH_SECRET || process.env.ADMIN_PASSWORD || "";
+  return process.env.TEAM_AUTH_SECRET || process.env.ADMIN_PASSWORD || "tnffm-team-session-v1";
 }
 
 export function hashPassword(password: string) {
@@ -18,14 +20,14 @@ export function createSession(username: string, teamSlug: string) {
 }
 
 export function verifySession(value: string | undefined) {
-  if (!value || !secret()) return null;
+  if (!value) return null;
   try {
     const decoded = Buffer.from(value, "base64url").toString("utf8");
     const parts = decoded.split("|");
     if (parts.length !== 3) return null;
     const [username, teamSlug, signature] = parts;
     const expected = crypto.createHmac("sha256", secret()).update(`${username}|${teamSlug}`).digest("hex");
-    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+    if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
     return { username, teamSlug };
   } catch {
     return null;
