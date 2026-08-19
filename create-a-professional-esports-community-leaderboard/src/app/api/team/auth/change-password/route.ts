@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   if (currentPassword === newPassword) return NextResponse.json({ ok: false, message: "New password must be different from the current password." }, { status: 400 });
   const webhook = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
   if (!webhook) return NextResponse.json({ ok: false, message: "Google Sheets is not configured." }, { status: 503 });
-  const response = await fetch(webhook, { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify({ action: "resetTeamPassword", username: session.username, passwordHash: hashPassword(newPassword) }) });
+  const response = await fetch(webhook, { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify({ action: "changeTeamPassword", username: session.username, currentPasswordHash: hashPassword(currentPassword), newPasswordHash: hashPassword(newPassword) }) });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.ok) return NextResponse.json({ ok: false, message: result.message || "Unable to change password." }, { status: 400 });
   return NextResponse.json(result);
