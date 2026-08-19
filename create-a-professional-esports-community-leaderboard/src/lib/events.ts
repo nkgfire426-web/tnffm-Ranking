@@ -23,11 +23,15 @@ async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
   const url = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
   if (!url) return null;
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2500);
+
   try {
     const response = await fetch(url, {
       method: "GET",
       cache: "no-store",
-      headers: { Accept: "application/json" }
+      headers: { Accept: "application/json" },
+      signal: controller.signal
     });
     if (!response.ok) return null;
 
@@ -35,8 +39,12 @@ async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
     const events = payload?.events;
     return Array.isArray(events) ? (events as TrackedEvent[]) : null;
   } catch (error) {
-    console.error("Google Sheets events read error:", error);
+    if (error instanceof Error && error.name !== "AbortError") {
+      console.error("Google Sheets events read error:", error);
+    }
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
