@@ -61,8 +61,8 @@ function registerTeam_(ss, body) {
   for (let i = 1; i < rows.length; i++) if (String(rows[i][0] || "").toLowerCase() === username) return json({ ok: false, message: "Username is already registered." });
   const team = readTeams_(ss).find(function (t) { return t.slug === teamSlug; });
   if (!team) return json({ ok: false, message: "Team not found." });
-  accounts.appendRow([username, passwordHash, teamSlug, email, "Pending", new Date().toISOString(), new Date().toISOString()]);
-  return json({ ok: true, status: "Pending", message: "Account request submitted. Admin approval is required before login." });
+  accounts.appendRow([username, passwordHash, teamSlug, email, "Active", new Date().toISOString(), new Date().toISOString()]);
+  return json({ ok: true, status: "Active", username: username, teamSlug: teamSlug, message: "Team account created successfully. You can login now." });
 }
 
 function loginTeam_(ss, body) {
@@ -74,8 +74,6 @@ function loginTeam_(ss, body) {
   for (let i = 1; i < values.length; i++) {
     const r = values[i];
     if (String(r[0] || "").toLowerCase() === username && String(r[1] || "") === passwordHash) {
-      const status = String(r[4] || "Pending");
-      if (status !== "Active") return json({ ok: false, message: status === "Pending" ? "Your account is waiting for admin approval." : "Your account is inactive." });
       return json({ ok: true, username: username, teamSlug: String(r[2] || ""), email: String(r[3] || "") });
     }
   }
@@ -86,7 +84,7 @@ function updateTeamProfile_(ss, body) {
   const username = String(body.username || "").trim().toLowerCase();
   const teamSlug = String(body.teamSlug || "").trim();
   const account = findAccount_(ss, username);
-  if (!account || account.teamSlug !== teamSlug || account.status !== "Active") return json({ ok: false, message: "Team account is not authorized." });
+  if (!account || account.teamSlug !== teamSlug) return json({ ok: false, message: "Team account is not authorized." });
   const teams = readTeams_(ss);
   const team = teams.find(function (t) { return t.slug === teamSlug; });
   if (!team) return json({ ok: false, message: "Team not found." });
@@ -118,7 +116,7 @@ function findAccount_(ss, username) {
   const sheet = ss.getSheetByName("TeamAccounts");
   if (!sheet || sheet.getLastRow() < 2) return null;
   const values = sheet.getDataRange().getValues();
-  for (let i = 1; i < values.length; i++) if (String(values[i][0] || "").toLowerCase() === username) return { username: String(values[i][0]), teamSlug: String(values[i][2] || ""), email: String(values[i][3] || ""), status: String(values[i][4] || "Pending") };
+  for (let i = 1; i < values.length; i++) if (String(values[i][0] || "").toLowerCase() === username) return { username: String(values[i][0]), teamSlug: String(values[i][2] || ""), email: String(values[i][3] || ""), status: String(values[i][4] || "Active") };
   return null;
 }
 
