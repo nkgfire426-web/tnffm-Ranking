@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import type React from "react";
-import { CalendarDays, Crown, LayoutDashboard, ListChecks, MoreVertical, ScrollText, Users } from "lucide-react";
+import { CalendarDays, Crown, LayoutDashboard, ListChecks, LogIn, MoreVertical, ScrollText, Users } from "lucide-react";
 
 export function Header() {
   return (
@@ -37,10 +37,17 @@ export function Header() {
           <Link href="/collaborators" className="hidden rounded-lg px-4 py-2 text-sm text-slate-300 transition hover:text-gold sm:inline-flex">
             Collaborators
           </Link>
-          <Link href="/admin" className="inline-flex items-center gap-2 rounded-lg border border-gold/30 px-4 py-2 text-sm font-semibold text-gold transition hover:bg-gold hover:text-black">
-            <LayoutDashboard className="h-4 w-4" />
-            Admin Login
-          </Link>
+
+          <div className="group relative">
+            <button className="inline-flex items-center gap-2 rounded-lg border border-gold/30 px-4 py-2 text-sm font-semibold text-gold transition hover:bg-gold hover:text-black" aria-haspopup="menu">
+              <LogIn className="h-4 w-4" />
+              Login
+            </button>
+            <div className="invisible absolute right-0 top-12 w-56 translate-y-2 rounded-xl border border-white/10 bg-black/95 p-2 opacity-0 shadow-glow backdrop-blur-xl transition group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+              <MenuLink href="/admin" icon={<LayoutDashboard className="h-4 w-4" />} label="Admin Login" />
+              <MenuLink href="/team-login" icon={<LogIn className="h-4 w-4" />} label="Team Login" />
+            </div>
+          </div>
         </div>
       </nav>
     </header>
