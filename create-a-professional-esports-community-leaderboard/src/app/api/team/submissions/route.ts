@@ -36,14 +36,14 @@ export async function POST(request: NextRequest) {
   const organizerName = String(body.organizerName || "").trim();
   const prizePool = String(body.prizePool || "").trim();
   const finalPosition = Number(body.finalPosition || 0);
-  const finalLeaderboard = String(body.finalLeaderboard || "").trim();
+  const teamFinalPoints = Number(body.teamFinalPoints || 0);
   const proofUrl = String(body.proofUrl || "").trim();
 
   if (tournamentName.length < 2) return NextResponse.json({ ok: false, message: "Enter the tournament name." }, { status: 400 });
   if (!tournamentDate) return NextResponse.json({ ok: false, message: "Enter the tournament date." }, { status: 400 });
   if (!organizerName) return NextResponse.json({ ok: false, message: "Enter the organizer name." }, { status: 400 });
-  if (!finalPosition || finalPosition < 1 || finalPosition > 100) return NextResponse.json({ ok: false, message: "Enter a valid final position." }, { status: 400 });
-  if (finalLeaderboard.length < 10) return NextResponse.json({ ok: false, message: "Paste the official final tournament leaderboard." }, { status: 400 });
+  if (!Number.isInteger(finalPosition) || finalPosition < 1 || finalPosition > 18) return NextResponse.json({ ok: false, message: "Final position must be a whole number from 1 to 18." }, { status: 400 });
+  if (!Number.isFinite(teamFinalPoints) || teamFinalPoints < 0) return NextResponse.json({ ok: false, message: "Enter your team's final tournament points." }, { status: 400 });
 
   return callSheets({
     action: "submitFinalLeaderboard",
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     organizerName,
     prizePool,
     finalPosition,
-    finalLeaderboard,
+    teamFinalPoints,
     proofUrl,
   });
 }
