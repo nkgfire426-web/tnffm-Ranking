@@ -1,7 +1,11 @@
-// Full merged TNFFM Apps Script: existing team accounts/profile/feedback + TournamentNews + RankingSubmissions.
-// Final submission now accepts only the team's final position (1-18) and team final tournament points.
-
-const TEAM_HEADERS = ["Team","Slug","Rank","PreviousRank","CommunityPoints","Badge","Logo URL","Banner URL","Kills","Booyahs","Championships","RunnerUp","SecondRunnerUp","Top3Finishes","FinalistFinishes","OfficialMatchFinalists","EventsPlayed","GrandFinals","WinRate","KillRatio","Players","Roster","Status","Description","LastUpdated","Mobile Number","ApprovedSubmissionPoints"];
+const TEAM_HEADERS = [
+  "Team","Slug","Rank","PreviousRank","CommunityPoints","Badge",
+  "Logo URL","Banner URL","Kills","Booyahs","Championships",
+  "RunnerUp","SecondRunnerUp","Top3Finishes","FinalistFinishes",
+  "OfficialMatchFinalists","EventsPlayed","GrandFinals","WinRate",
+  "KillRatio","Players","Roster","Status","Description","LastUpdated",
+  "Mobile Number","ApprovedSubmissionPoints"
+];
 const ACCOUNT_HEADERS = ["Username","PasswordHash","TeamSlug","Email","Status","CreatedAt","UpdatedAt"];
 const NEWS_HEADERS = ["ID","Title","Description","Date","Type","Status","Link"];
 const SUBMISSION_HEADERS = ["SubmissionID","Username","TeamSlug","Team","TournamentName","TournamentDate","OrganizerName","PrizePool","FinalPosition","FinalLeaderboard","ProofURL","Status","TNFFMPoints","ReviewNotes","ReviewedBy","ReviewedAt","CreatedAt","Applied","TeamFinalPoints"];
@@ -41,6 +45,5 @@ function pointsForFinalPosition_(position){if(position===1)return 100;if(positio
 function syncApprovedSubmissions_(ss){const sheet=ensureSubmissionsSheet_(ss);if(sheet.getLastRow()<2)return;const teams=readTeams_(ss),rows=sheet.getDataRange().getValues();let changed=false;for(let i=1;i<rows.length;i++){const status=String(rows[i][11]||"Pending").trim().toLowerCase(),applied=String(rows[i][17]||"No").trim().toLowerCase();if(status!=="approved"||applied==="yes")continue;const slug=String(rows[i][2]||"").trim(),position=number_(rows[i][8]),team=teams.find(t=>t.slug===slug);if(!team||!position)continue;const points=pointsForFinalPosition_(position);sheet.getRange(i+1,13).setValue(points);if(points<=0){sheet.getRange(i+1,18).setValue("Yes");continue;}team.approvedSubmissionPoints=number_(team.approvedSubmissionPoints)+points;team.eventsPlayed=number_(team.eventsPlayed)+1;team.lastUpdated=new Date().toISOString();sheet.getRange(i+1,18).setValue("Yes");if(!rows[i][15])sheet.getRange(i+1,16).setValue(new Date().toISOString());changed=true;}if(changed){writeTeams_(ss,teams);SpreadsheetApp.flush();}}
 function recalculateApprovedSubmissions_(ss){const sheet=ensureSubmissionsSheet_(ss),teams=readTeams_(ss);teams.forEach(team=>team.approvedSubmissionPoints=0);if(sheet.getLastRow()<2){writeTeams_(ss,teams);return;}const rows=sheet.getDataRange().getValues();for(let i=1;i<rows.length;i++){const status=String(rows[i][11]||"").trim().toLowerCase();if(status!=="approved")continue;const slug=String(rows[i][2]||"").trim(),position=number_(rows[i][8]),points=pointsForFinalPosition_(position),team=teams.find(t=>t.slug===slug);if(team)team.approvedSubmissionPoints+=points;sheet.getRange(i+1,13).setValue(points);sheet.getRange(i+1,18).setValue("Yes");}writeTeams_(ss,teams);SpreadsheetApp.flush();}
 
-// Existing feedback compatibility. If your older sheet already has a Feedback tab, this appends without deleting it.
 const FEEDBACK_HEADERS=["FeedbackID","Username","TeamSlug","Type","Message","Status","CreatedAt","AdminReply"];
 function submitFeedback_(ss,b){const username=String(b.username||"").trim().toLowerCase(),account=findAccount_(ss,username);if(!account||account.status.toLowerCase()!=="active")return json_({ok:false,message:"Team account is not authorized."});const message=String(b.message||"").trim(),type=String(b.type||"Suggestion").trim();if(message.length<5)return json_({ok:false,message:"Feedback is too short."});const sheet=getOrCreateSheet_(ss,"Feedback");ensureHeaders_(sheet,FEEDBACK_HEADERS);const id="FB-"+Utilities.getUuid().slice(0,8).toUpperCase();sheet.appendRow([id,username,account.teamSlug,type,message,"Pending",new Date().toISOString(),""]);SpreadsheetApp.flush();return json_({ok:true,feedbackId:id,message:"Feedback sent successfully."});}
