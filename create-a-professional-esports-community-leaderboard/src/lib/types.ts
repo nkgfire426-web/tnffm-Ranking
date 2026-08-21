@@ -13,6 +13,7 @@ export type RawTeam = {
   grandFinals: number;
   winRate: number;
   killRatio: number;
+  approvedSubmissionPoints?: number;
   status?: "Active" | "Inactive" | "Banned";
   description?: string;
   bannerUrl?: string;
