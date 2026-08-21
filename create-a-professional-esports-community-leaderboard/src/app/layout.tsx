@@ -3,6 +3,7 @@ import type React from "react";
 import { Inter, Rajdhani } from "next/font/google";
 import "./globals.css";
 import { Footer } from "@/components/Footer";
+import { TeamFeedbackWidget } from "@/components/TeamFeedbackWidget";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const rajdhani = Rajdhani({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-rajdhani" });
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={`${inter.variable} ${rajdhani.variable}`}>
       <body className="min-h-screen font-sans antialiased">
         {children}
+        <TeamFeedbackWidget />
         <Footer />
       </body>
     </html>
