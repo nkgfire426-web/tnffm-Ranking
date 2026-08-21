@@ -9,12 +9,21 @@ import { TeamLogo } from "./TeamLogo";
 
 type Collaborator = { name: string; role: string; logoUrl: string; url: string };
 
+type SheetPayload = {
+  ok?: boolean;
+  message?: string;
+  teams?: RawTeam[];
+  events?: TrackedEvent[];
+  collaborators?: Collaborator[];
+};
+
 export function AdminDashboard({ initialTeams, initialEvents, initialCollaborators }: { initialTeams: RawTeam[]; initialEvents: TrackedEvent[]; initialCollaborators?: Collaborator[] }) {
   const [password, setPassword] = useState("");
   const [unlocked, setUnlocked] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
   const [saveInProgress, setSaveInProgress] = useState(false);
+  const [sheetRefreshing, setSheetRefreshing] = useState(false);
   const [pendingEditSlug, setPendingEditSlug] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"teams" | "events" | "collaborators">("teams");
   const [teams, setTeams] = useState<RawTeam[]>(initialTeams);
@@ -29,18 +38,10 @@ export function AdminDashboard({ initialTeams, initialEvents, initialCollaborato
       const edit = params.get("edit");
       if (edit) setPendingEditSlug(edit);
     } catch {}
-    try {
-      const saved = window.localStorage.getItem("tnffm-admin-teams");
-      if (saved) setTeams(JSON.parse(saved) as RawTeam[]);
-    } catch { try { window.localStorage.removeItem("tnffm-admin-teams"); } catch {} }
-    try {
-      const saved = window.localStorage.getItem("tnffm-admin-events");
-      if (saved) setEvents(JSON.parse(saved) as TrackedEvent[]);
-    } catch { try { window.localStorage.removeItem("tnffm-admin-events"); } catch {} }
-    try {
-      const saved = window.localStorage.getItem("tnffm-admin-collaborators");
-      if (saved) setCollaborators(JSON.parse(saved) as Collaborator[]);
-    } catch { try { window.localStorage.removeItem("tnffm-admin-collaborators"); } catch {} }
+
+    // Do not restore teams/events from localStorage here.
+    // Google Sheets is the source of truth, and old browser data could overwrite
+    // newly approved submissions or newly added spreadsheet rows.
   }, []);
 
   useEffect(() => {
@@ -52,6 +53,61 @@ export function AdminDashboard({ initialTeams, initialEvents, initialCollaborato
     }
   }, [pendingEditSlug, unlocked, teams]);
 
+  async function refreshFromSheet(showMessage = true) {
+    if (!password) return;
+    setSheetRefreshing(true);
+    if (showMessage) setSaveStatus("Reading latest Google Sheets data...");
+
+    try {
+      const response = await fetch("/api/admin/sheet", {
+        method: "GET",
+        cache: "no-store",
+        headers: {
+          "x-admin-password": password,
+          Accept: "application/json"
+        }
+      });
+
+      const result = (await response.json().catch(() => ({}))) as SheetPayload;
+
+      if (!response.ok || result.ok === false) {
+        setSaveStatus(result.message || "Google Sheets refresh failed.");
+        return;
+      }
+
+      if (Array.isArray(result.teams)) setTeams(result.teams);
+      if (Array.isArray(result.events)) setEvents(result.events);
+      if (Array.isArray(result.collaborators)) setCollaborators(result.collaborators);
+
+      try {
+        if (Array.isArray(result.teams)) window.localStorage.setItem("tnffm-admin-teams", JSON.stringify(result.teams));
+        if (Array.isArray(result.events)) window.localStorage.setItem("tnffm-admin-events", JSON.stringify(result.events));
+        if (Array.isArray(result.collaborators)) window.localStorage.setItem("tnffm-admin-collaborators", JSON.stringify(result.collaborators));
+      } catch {}
+
+      if (showMessage) {
+        setSaveStatus(`Google Sheets synced — ${result.teams?.length || 0} teams, ${result.events?.length || 0} tracked events loaded.`);
+      }
+    } catch {
+      setSaveStatus("Google Sheets refresh failed — server unreachable.");
+    } finally {
+      setSheetRefreshing(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!unlocked) return;
+
+    refreshFromSheet(false);
+
+    // Keep the admin dashboard synchronized with Google Sheets.
+    const interval = window.setInterval(() => {
+      refreshFromSheet(false);
+    }, 30000);
+
+    return () => window.clearInterval(interval);
+  }, [unlocked, password]);
+
   async function login() {
     try {
       const response = await fetch("/api/admin/login", {
@@ -62,6 +118,7 @@ export function AdminDashboard({ initialTeams, initialEvents, initialCollaborato
       if (response.ok) {
         setUnlocked(true);
         setLoginError("");
+        setSaveStatus("Admin unlocked. Loading latest Google Sheets data...");
       } else {
         setLoginError("Invalid admin password.");
       }
@@ -161,14 +218,14 @@ export function AdminDashboard({ initialTeams, initialEvents, initialCollaborato
   }
 
   async function syncToSheet() {
-    setSaveStatus("Syncing...");
+    setSaveStatus("Syncing dashboard changes to Google Sheets...");
     try {
       const response = await fetch("/api/admin/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password, teams })
       });
-      setSaveStatus(response.ok ? "Sync request sent to Google Sheets webhook." : "Set GOOGLE_SHEETS_WEBHOOK_URL to enable dashboard write-back.");
+      setSaveStatus(response.ok ? "Dashboard data sent to Google Sheets." : "Set GOOGLE_SHEETS_WEBHOOK_URL to enable dashboard write-back.");
     } catch {
       setSaveStatus("Sync failed — server unreachable.");
     }
@@ -196,6 +253,9 @@ export function AdminDashboard({ initialTeams, initialEvents, initialCollaborato
       });
       const bodyText = await response.text().catch(() => "");
       setSaveStatus(response.ok ? "Changes saved." : `Save failed: ${response.status} ${bodyText}`);
+      if (response.ok) {
+        await refreshFromSheet(false);
+      }
     } catch {
       setSaveStatus("Save failed — server unreachable. Changes remain in browser storage.");
     } finally {
@@ -230,7 +290,8 @@ export function AdminDashboard({ initialTeams, initialEvents, initialCollaborato
           <button onClick={addTeam} className="inline-flex items-center justify-center gap-2 rounded-lg bg-gold px-4 py-3 font-bold text-black"><Plus className="h-4 w-4" />Add Team</button>
           <button onClick={addEvent} className="inline-flex items-center justify-center gap-2 rounded-lg border border-gold/30 px-4 py-3 font-bold text-gold transition hover:bg-gold hover:text-black"><Plus className="h-4 w-4" />Add Event</button>
           <button disabled={saveInProgress} onClick={saveLocally} className={`inline-flex items-center justify-center gap-2 rounded-lg ${saveInProgress ? "bg-gray-600" : "bg-red-600"} px-4 py-3 font-bold text-white transition hover:bg-red-500 disabled:opacity-60`}><Save className="h-4 w-4" />{saveInProgress ? "Saving..." : "Save Changes"}</button>
-          <button onClick={syncToSheet} className="inline-flex items-center justify-center gap-2 rounded-lg border border-gold/30 px-4 py-3 font-bold text-gold"><Upload className="h-4 w-4" />Sync Sheet</button>
+          <button disabled={sheetRefreshing} onClick={() => refreshFromSheet(true)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-gold/30 px-4 py-3 font-bold text-gold disabled:opacity-60"><Upload className="h-4 w-4" />{sheetRefreshing ? "Refreshing..." : "Refresh Sheet"}</button>
+          <button onClick={syncToSheet} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 px-4 py-3 font-bold text-slate-200"><Upload className="h-4 w-4" />Write Dashboard to Sheet</button>
           <button onClick={exportAdminData} className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 px-4 py-3 font-bold text-slate-200 transition hover:border-gold/40 hover:text-gold"><Download className="h-4 w-4" />Export Data</button>
         </div>
       </div>
@@ -238,8 +299,8 @@ export function AdminDashboard({ initialTeams, initialEvents, initialCollaborato
       {saveStatus && <div className="mb-5 rounded-lg border border-gold/25 bg-gold/10 px-4 py-3 text-sm font-semibold text-gold">{saveStatus}</div>}
 
       <div className="mb-5 flex gap-2 rounded-lg border border-white/10 bg-black/35 p-2">
-        {(["teams", "events", "collaborators"] as const).map((tab) => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className={`rounded-md px-4 py-2 text-sm font-bold transition ${activeTab === tab ? "bg-gold text-black" : "text-slate-300 hover:text-gold"}`}>
+        {["teams", "events", "collaborators"].map((tab) => (
+          <button key={tab} onClick={() => setActiveTab(tab as "teams" | "events" | "collaborators")} className={`rounded-md px-4 py-2 text-sm font-bold transition ${activeTab === tab ? "bg-gold text-black" : "text-slate-300 hover:text-gold"}`}>
             {tab === "teams" ? "Team Rankings" : tab === "events" ? "Tracked Events" : "Collaborators"}
           </button>
         ))}
@@ -316,7 +377,7 @@ export function AdminDashboard({ initialTeams, initialEvents, initialCollaborato
         </div>
       )}
 
-      <div className="mt-5 glass rounded-lg p-5 text-sm text-slate-400"><div className="mb-2 flex items-center gap-2 font-semibold text-gold"><Save className="h-4 w-4" />Google Sheets workflow</div>Use Save Changes to update this local website. Paste public image URLs into the Team Logo URL or Collaborator Logo URL fields, then Save Changes to write them to Google Sheets.</div>
+      <div className="mt-5 glass rounded-lg p-5 text-sm text-slate-400"><div className="mb-2 flex items-center gap-2 font-semibold text-gold"><Save className="h-4 w-4" />Google Sheets workflow</div>Google Sheets is now the source of truth for the admin dashboard. Use Refresh Sheet to pull the latest spreadsheet data. Use Save Changes to write dashboard edits back to Google Sheets.</div>
     </section>
   );
 }
