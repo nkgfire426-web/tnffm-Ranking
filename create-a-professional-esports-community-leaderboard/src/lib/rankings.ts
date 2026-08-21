@@ -1,10 +1,6 @@
 import type { RawTeam, RankedTeam } from "./types";
 
-export const slugify = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
+export const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 export function calculateCommunityPoints(team: RawTeam) {
   const top5Finishes = team.top5Finishes || 0;
@@ -17,20 +13,13 @@ export function calculateCommunityPoints(team: RawTeam) {
     team.secondRunnerUp * 50 +
     top5Finishes * 25 +
     finalistFinishes * 15 +
-    officialMatchFinalists * 100
+    officialMatchFinalists * 100 +
+    (team.approvedSubmissionPoints || 0)
   );
 }
 
 export function getEventsPlayed(team: RawTeam) {
-  return (
-    team.eventsPlayed ||
-    team.championships +
-      team.runnerUp +
-      team.secondRunnerUp +
-      (team.top5Finishes || 0) +
-      (team.finalistFinishes || team.grandFinals || 0) +
-      (team.officialMatchFinalists || 0)
-  );
+  return team.eventsPlayed || team.championships + team.runnerUp + team.secondRunnerUp + (team.top5Finishes || 0) + (team.finalistFinishes || team.grandFinals || 0) + (team.officialMatchFinalists || 0);
 }
 
 export function rankTeams(teams: RawTeam[]): RankedTeam[] {
