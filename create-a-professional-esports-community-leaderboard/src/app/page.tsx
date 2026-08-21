@@ -5,19 +5,18 @@ import { Podium } from "@/components/Podium";
 import { RecentUpdates } from "@/components/RecentUpdates";
 import { RankingsInsights } from "@/components/RankingsInsights";
 import { StatsCards } from "@/components/StatsCards";
-import { getRankedTeams } from "@/lib/google-sheets";
+import { getRankedTeams, getTournamentNews } from "@/lib/google-sheets";
 
-// The homepage reads live Google Sheets data and must be rendered dynamically.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function Home() {
-  const teams = await getRankedTeams();
+  const [teams, news] = await Promise.all([getRankedTeams(), getTournamentNews()]);
 
   return (
     <main>
       <Header />
-      <Hero teams={teams} />
+      <Hero teams={teams} news={news} />
       <StatsCards teams={teams} />
       <Podium teams={teams} />
       <RankingsInsights teams={teams} />
