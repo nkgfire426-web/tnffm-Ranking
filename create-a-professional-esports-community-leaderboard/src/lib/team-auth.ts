@@ -39,8 +39,16 @@ export async function getTeamSession() {
   return verifySession(store.get(COOKIE_NAME)?.value);
 }
 
+// Persistent browser login: closing the site/browser will not remove the session.
+// The team remains signed in for 30 days unless they explicitly log out.
 export function teamCookieOptions() {
-  return { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", maxAge: 60 * 60 * 24 * 7 };
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30
+  };
 }
 
 export { COOKIE_NAME };
