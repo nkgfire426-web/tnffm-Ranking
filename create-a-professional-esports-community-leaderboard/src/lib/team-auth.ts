@@ -39,8 +39,16 @@ export async function getTeamSession() {
   return verifySession(store.get(COOKIE_NAME)?.value);
 }
 
+// Keep a successful team login saved for 30 days, including when the user
+// navigates back to the main rankings page or closes/reopens the browser.
 export function teamCookieOptions() {
-  return { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", maxAge: 60 * 60 * 24 * 7 };
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30
+  };
 }
 
 export { COOKIE_NAME };
