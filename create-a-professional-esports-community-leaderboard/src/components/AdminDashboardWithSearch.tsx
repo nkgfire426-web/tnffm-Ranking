@@ -25,7 +25,7 @@ export function AdminDashboardWithSearch({
       const root = document.querySelector("[data-admin-dashboard]");
       if (!root) return;
 
-      const cards = Array.from(root.querySelectorAll<HTMLElement>("[data-admin-card]"));
+      const cards = Array.from(root.querySelectorAll<HTMLElement>(".glass.rounded-xl.p-4"));
       const normalized = query.trim().toLowerCase();
 
       if (!normalized) {
@@ -49,7 +49,7 @@ export function AdminDashboardWithSearch({
 
     applySearch();
     const observer = new MutationObserver(applySearch);
-    observer.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["value"] });
+    observer.observe(document.body, { subtree: true, childList: true, characterData: true });
     return () => observer.disconnect();
   }, [query]);
 
@@ -68,21 +68,12 @@ export function AdminDashboardWithSearch({
                 className="w-full rounded-lg border border-white/10 bg-black/45 py-3 pl-10 pr-10 text-white outline-none transition placeholder:text-slate-500 focus:border-gold/60"
               />
               {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  aria-label="Clear search"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-400 hover:text-white"
-                >
+                <button type="button" onClick={() => setQuery("")} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-2 text-slate-400 hover:text-white">
                   <X className="h-4 w-4" />
                 </button>
               )}
             </div>
-            {query && (
-              <p className="text-sm font-semibold text-gold sm:min-w-fit">
-                {visibleCount ?? 0} result{visibleCount === 1 ? "" : "s"}
-              </p>
-            )}
+            {query && <p className="text-sm font-semibold text-gold sm:min-w-fit">{visibleCount ?? 0} result{visibleCount === 1 ? "" : "s"}</p>}
           </div>
         </div>
       </div>
