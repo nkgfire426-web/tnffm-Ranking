@@ -9,14 +9,14 @@ permissions:
 
 jobs:
   repair:
-    if: ${{ !contains(github.event.head_commit.message, '[typing-repair]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[typing-repair-v2]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Replace controlled admin fields with blur-committed fields
+      - name: Replace controlled admin fields with local draft fields
         shell: python
         run: |
           from pathlib import Path
@@ -41,26 +41,14 @@ jobs:
     if (nextValue !== String(value ?? "")) onChange(nextValue);
   };
 
-  return <label className="block">
-    <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">{label}</span>
-    <input
-      ref={inputRef}
-      type={type}
-      defaultValue={localValue}
-      onBlur={commit}
-      onChange={(e) => setLocalValue(e.target.value)}
-      className="w-full rounded-lg border border-white/10 bg-black/45 px-3 py-2.5 text-white outline-none transition focus:border-gold/60"
-    />
-  </label>;
+  return <label className="block"><span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">{label}</span><input ref={inputRef} type={type} value={localValue} onChange={(e) => setLocalValue(e.target.value)} onBlur={commit} className="w-full rounded-lg border border-white/10 bg-black/45 px-3 py-2.5 text-white outline-none transition focus:border-gold/60" /></label>;
 });'''
 
-          if 'defaultValue={localValue}' not in text:
-              updated, count = pattern.subn(replacement, text, count=1)
-              if count != 1:
-                  raise SystemExit('Could not locate the Field component')
+          updated, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('Could not locate the Field component')
+          if updated != text:
               path.write_text(updated)
-          else:
-              print('Typing repair already present')
 
       - name: Commit repair
         shell: bash
@@ -72,5 +60,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add create-a-professional-esports-community-leaderboard/src/components/AdminDashboard.tsx
-          git commit -m 'Fix tracked events typing permanently [typing-repair]'
+          git commit -m 'Fix admin field continuous typing [typing-repair-v2]'
           git push
