@@ -16,10 +16,18 @@ export function Header() {
     let active = true;
     async function loadSession() {
       try {
-        const response = await fetch("/api/team/auth/me", { credentials: "same-origin", cache: "no-store" });
+        // The authenticated team endpoint is /api/team/me.
+        // It reads the 30-day httpOnly team session cookie set at login.
+        const response = await fetch("/api/team/me", {
+          credentials: "same-origin",
+          cache: "no-store"
+        });
         const result = await response.json().catch(() => ({}));
         if (active && result?.ok && result?.team) {
-          setTeam({ teamName: result.team.teamName || result.team.name || "Team", logoUrl: result.team.logoUrl || result.team.logo || "" });
+          setTeam({
+            teamName: result.team.teamName || result.team.name || "Team",
+            logoUrl: result.team.logoUrl || result.team.logo || ""
+          });
         } else if (active) {
           setTeam(null);
         }
@@ -29,10 +37,14 @@ export function Header() {
         if (active) setLoading(false);
       }
     }
+
     loadSession();
     const onFocus = () => loadSession();
     window.addEventListener("focus", onFocus);
-    return () => { active = false; window.removeEventListener("focus", onFocus); };
+    return () => {
+      active = false;
+      window.removeEventListener("focus", onFocus);
+    };
   }, []);
 
   return (
@@ -70,7 +82,7 @@ export function Header() {
             <Link href="/team-dashboard" className="flex max-w-[150px] items-center gap-2 rounded-lg border border-gold/30 bg-black/60 px-2 py-1.5 transition hover:border-gold hover:bg-gold/10 sm:max-w-[210px] sm:px-3 sm:py-2" title="Open Team Dashboard">
               <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full border border-gold/40 bg-black sm:h-9 sm:w-9">
                 {team.logoUrl ? (
-                  <img src={team.logoUrl} alt="Team logo" className="h-full w-full object-cover" />
+                  <img src={team.logoUrl} alt={`${team.teamName || "Team"} logo`} className="h-full w-full object-cover" />
                 ) : (
                   <UserCircle2 className="h-5 w-5 text-gold" />
                 )}
