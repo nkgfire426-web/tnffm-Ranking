@@ -10,6 +10,10 @@ export const metadata = {
   description: "Protected team management dashboard for TNFFM Community Rankings."
 };
 
+// This page reads live Google Sheets data and must never be statically generated.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function AdminPage() {
   const teams = await getRankedTeams();
   const events = await getTrackedEvents();
