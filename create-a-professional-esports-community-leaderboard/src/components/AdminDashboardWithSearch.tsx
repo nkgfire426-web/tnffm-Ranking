@@ -21,36 +21,29 @@ export function AdminDashboardWithSearch({
   const [visibleCount, setVisibleCount] = useState<number | null>(null);
 
   useEffect(() => {
-    const applySearch = () => {
-      const root = document.querySelector("[data-admin-dashboard]");
-      if (!root) return;
+    const root = document.querySelector("[data-admin-dashboard]");
+    if (!root) return;
 
-      const cards = Array.from(root.querySelectorAll<HTMLElement>(".glass.rounded-xl.p-4"));
-      const normalized = query.trim().toLowerCase();
+    const cards = Array.from(root.querySelectorAll<HTMLElement>(".glass.rounded-xl.p-4"));
+    const normalized = query.trim().toLowerCase();
 
-      if (!normalized) {
-        cards.forEach((card) => { card.style.display = ""; });
-        setVisibleCount(null);
-        return;
-      }
+    if (!normalized) {
+      cards.forEach((card) => { card.style.display = ""; });
+      setVisibleCount(null);
+      return;
+    }
 
-      let matches = 0;
-      cards.forEach((card) => {
-        const inputValues = Array.from(card.querySelectorAll<HTMLInputElement>("input"))
-          .map((input) => input.value)
-          .join(" ");
-        const text = `${card.textContent || ""} ${inputValues}`.toLowerCase();
-        const match = text.includes(normalized);
-        card.style.display = match ? "" : "none";
-        if (match) matches += 1;
-      });
-      setVisibleCount(matches);
-    };
-
-    applySearch();
-    const observer = new MutationObserver(applySearch);
-    observer.observe(document.body, { subtree: true, childList: true, characterData: true });
-    return () => observer.disconnect();
+    let matches = 0;
+    cards.forEach((card) => {
+      const inputValues = Array.from(card.querySelectorAll<HTMLInputElement>("input"))
+        .map((input) => input.value)
+        .join(" ");
+      const text = `${card.textContent || ""} ${inputValues}`.toLowerCase();
+      const match = text.includes(normalized);
+      card.style.display = match ? "" : "none";
+      if (match) matches += 1;
+    });
+    setVisibleCount(matches);
   }, [query]);
 
   return (
