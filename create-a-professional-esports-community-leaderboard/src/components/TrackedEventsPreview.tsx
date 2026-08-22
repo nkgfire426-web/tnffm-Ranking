@@ -12,10 +12,13 @@ export function TrackedEventsPreview({ events: initialEvents }: { events: Tracke
 
     const refresh = async () => {
       try {
-        const response = await fetch("/api/tracked-events", {
+        const response = await fetch(`/api/tracked-events?_refresh=${Date.now()}`, {
           method: "GET",
           cache: "no-store",
-          headers: { Accept: "application/json" }
+          headers: {
+            Accept: "application/json",
+            "Cache-Control": "no-cache, no-store, max-age=0"
+          }
         });
         if (!response.ok) return;
         const payload = await response.json();
@@ -25,6 +28,8 @@ export function TrackedEventsPreview({ events: initialEvents }: { events: Tracke
       }
     };
 
+    // Refresh immediately so the homepage never waits 15 seconds after loading.
+    void refresh();
     const timer = window.setInterval(refresh, 15000);
     return () => {
       active = false;
