@@ -10,7 +10,8 @@ type TeamLogoProps = {
   champion?: boolean;
 };
 
-const DEFAULT_FREE_FIRE_MAX_LOGO = "/brand/free-fire-max-logo.png";
+// Official fallback used whenever a team has no logo or its logo cannot be loaded.
+const DEFAULT_FREE_FIRE_MAX_LOGO = "/brand/free-fire-max-logo.svg";
 
 function normalizeImageUrl(src?: string | null) {
   const value = String(src || "").trim();
@@ -41,9 +42,9 @@ export function TeamLogo({ src, name, size = 48, champion = false }: TeamLogoPro
         height={size - 8}
         className="h-full w-full rounded-md object-contain"
         onError={(event) => {
-          if (event.currentTarget.src !== DEFAULT_FREE_FIRE_MAX_LOGO) {
-            event.currentTarget.src = DEFAULT_FREE_FIRE_MAX_LOGO;
-          }
+          if (event.currentTarget.dataset.fallbackApplied === "true") return;
+          event.currentTarget.dataset.fallbackApplied = "true";
+          event.currentTarget.src = DEFAULT_FREE_FIRE_MAX_LOGO;
         }}
       />
     </div>
