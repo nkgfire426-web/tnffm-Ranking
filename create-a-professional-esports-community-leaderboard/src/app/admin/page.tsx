@@ -1,5 +1,5 @@
 import { Header } from "@/components/Header";
-import { AdminDashboard } from "@/components/AdminDashboard";
+import { AdminDashboardWithSearch } from "@/components/AdminDashboardWithSearch";
 import { getTrackedEvents } from "@/lib/events";
 import { getRankedTeams } from "@/lib/google-sheets";
 import { getCollaborators } from "@/lib/collaborators";
@@ -23,7 +23,7 @@ export default async function AdminPage() {
           Tournament News & Updates
         </Link>
       </div>
-      <AdminDashboard initialTeams={teams} initialEvents={events} initialCollaborators={collaborators} />
+      <AdminDashboardWithSearch initialTeams={teams} initialEvents={events} initialCollaborators={collaborators} />
     </main>
   );
 }
