@@ -3,6 +3,7 @@ import { AdminDashboard } from "@/components/AdminDashboard";
 import { getTrackedEvents } from "@/lib/events";
 import { getRankedTeams } from "@/lib/google-sheets";
 import { getCollaborators } from "@/lib/collaborators";
+import Link from "next/link";
 
 export const metadata = {
   title: "Admin Dashboard | TNFFM Community Rankings",
@@ -17,6 +18,11 @@ export default async function AdminPage() {
   return (
     <main>
       <Header />
+      <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
+        <Link href="/admin/news" className="inline-flex items-center rounded-lg border border-gold/30 bg-black/30 px-4 py-3 text-sm font-bold text-gold transition hover:bg-gold hover:text-black">
+          Tournament News & Updates
+        </Link>
+      </div>
       <AdminDashboard initialTeams={teams} initialEvents={events} initialCollaborators={collaborators} />
     </main>
   );
