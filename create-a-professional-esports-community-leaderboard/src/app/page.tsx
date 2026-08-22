@@ -19,7 +19,7 @@ export default async function Home() {
       <Hero teams={teams} news={news} />
       <StatsCards teams={teams} />
       <Podium teams={teams} />
-      <RankingsInsights teams={teams} />
+      <RankingsInsights teams={teams} news={news} />
       <LeaderboardTable teams={teams} />
       <RecentUpdates teams={teams} />
     </main>
