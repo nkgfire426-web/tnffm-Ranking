@@ -12,6 +12,7 @@ export type TournamentNews = {
   date?: string;
   type?: string;
   status?: string;
+  imageUrl?: string;
   link?: string;
 };
 
