@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import Link from "next/link";
 import { toPng } from "html-to-image";
@@ -26,6 +26,7 @@ const columns: { key: SortKey; label: string }[] = [
 ];
 
 export function LeaderboardTable({ teams }: { teams: RankedTeam[] }) {
+  const [liveTeams, setLiveTeams] = useState<RankedTeam[]>(teams);
   const [query, setQuery] = useState("");
   const [rankFilter, setRankFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -35,8 +36,33 @@ export function LeaderboardTable({ teams }: { teams: RankedTeam[] }) {
   const tableRef = useRef<HTMLDivElement>(null);
   const pageSize = 10;
 
+  useEffect(() => {
+    let active = true;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    const loadLatest = async () => {
+      try {
+        const response = await fetch("/api/teams", { cache: "no-store", headers: { Accept: "application/json" } });
+        if (!response.ok) return;
+        const payload = await response.json() as { teams?: RankedTeam[] };
+        if (active && Array.isArray(payload.teams)) {
+          setLiveTeams(payload.teams);
+        }
+      } catch {
+        // Keep the last known leaderboard visible if the live refresh fails.
+      }
+    };
+
+    void loadLatest();
+    timer = setInterval(loadLatest, 15000);
+    return () => {
+      active = false;
+      if (timer) clearInterval(timer);
+    };
+  }, []);
+
   const filtered = useMemo(() => {
-    return teams
+    return liveTeams
       .filter((team) => {
         if (rankFilter === "top10") return team.rank <= 10;
         if (rankFilter === "top5") return team.rank <= 5;
@@ -53,7 +79,7 @@ export function LeaderboardTable({ teams }: { teams: RankedTeam[] }) {
         if (typeof aValue === "number" && typeof bValue === "number") return (aValue - bValue) * modifier;
         return String(aValue).localeCompare(String(bValue)) * modifier;
       });
-  }, [query, rankFilter, statusFilter, sortDirection, sortKey, teams]);
+  }, [query, rankFilter, statusFilter, sortDirection, sortKey, liveTeams]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageTeams = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -79,6 +105,7 @@ export function LeaderboardTable({ teams }: { teams: RankedTeam[] }) {
         <div>
           <p className="font-rajdhani text-sm font-bold uppercase tracking-[0.25em] text-gold">Live Leaderboard</p>
           <h2 className="font-rajdhani text-4xl font-bold uppercase text-white">Community Rankings</h2>
+          <p className="mt-1 text-xs text-slate-500">Updates automatically from the live rankings data.</p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <label className="relative min-w-64">
