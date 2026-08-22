@@ -46,49 +46,6 @@ export function AdminDashboardWithSearch({
     setVisibleCount(matches);
   }, [query]);
 
-  // Some admin rows can be rebuilt by React while their value is being edited.
-  // Keep the exact input/caret focused across that render so typing is continuous.
-  useEffect(() => {
-    const root = document.querySelector<HTMLElement>("[data-admin-dashboard]");
-    if (!root) return;
-
-    const handleInput = (event: Event) => {
-      const target = event.target;
-      if (!(target instanceof HTMLInputElement)) return;
-      const card = target.closest<HTMLElement>(".glass.rounded-xl.p-4");
-      if (!card || !root.contains(card)) return;
-
-      const inputs = Array.from(card.querySelectorAll<HTMLInputElement>("input"));
-      const inputIndex = inputs.indexOf(target);
-      if (inputIndex < 0) return;
-      const selectionStart = target.selectionStart;
-      const selectionEnd = target.selectionEnd;
-
-      requestAnimationFrame(() => {
-        const replacementCard = Array.from(root.querySelectorAll<HTMLElement>(".glass.rounded-xl.p-4"))
-          .find((candidate) => candidate === card || candidate.dataset.adminCardIndex === card.dataset.adminCardIndex);
-        const replacement = replacementCard?.querySelectorAll<HTMLInputElement>("input")[inputIndex];
-        if (!replacement) return;
-        replacement.focus({ preventScroll: true });
-        if (selectionStart !== null && selectionEnd !== null && replacement.type !== "number") {
-          const position = Math.min(selectionStart, replacement.value.length);
-          const end = Math.min(selectionEnd, replacement.value.length);
-          replacement.setSelectionRange(position, end);
-        }
-      });
-    };
-
-    root.addEventListener("input", handleInput, true);
-    return () => root.removeEventListener("input", handleInput, true);
-  }, []);
-
-  useEffect(() => {
-    const root = document.querySelector<HTMLElement>("[data-admin-dashboard]");
-    if (!root) return;
-    const cards = Array.from(root.querySelectorAll<HTMLElement>(".glass.rounded-xl.p-4"));
-    cards.forEach((card, index) => card.dataset.adminCardIndex = String(index));
-  });
-
   return (
     <div data-admin-dashboard>
       <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
