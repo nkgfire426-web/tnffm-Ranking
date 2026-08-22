@@ -3,23 +3,35 @@ import type { RawTeam, RankedTeam } from "./types";
 export const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
 export function calculateCommunityPoints(team: RawTeam) {
-  const top5Finishes = team.top5Finishes || 0;
-  const finalistFinishes = team.finalistFinishes || team.grandFinals || 0;
-  const officialMatchFinalists = team.officialMatchFinalists || 0;
+  const top5Finishes = Number(team.top5Finishes || 0);
+  const finalistFinishes = Number(team.finalistFinishes || team.grandFinals || 0);
+  const officialMatchFinalists = Number(team.officialMatchFinalists || 0);
 
   return (
-    team.championships * 100 +
-    team.runnerUp * 70 +
-    team.secondRunnerUp * 50 +
+    Number(team.championships || 0) * 100 +
+    Number(team.runnerUp || 0) * 70 +
+    Number(team.secondRunnerUp || 0) * 50 +
     top5Finishes * 25 +
     finalistFinishes * 15 +
     officialMatchFinalists * 100 +
-    (team.approvedSubmissionPoints || 0)
+    Number(team.approvedSubmissionPoints || 0)
   );
 }
 
+/**
+ * Events Played is always derived from recorded results.
+ * The stored eventsPlayed value is intentionally ignored so stale Sheet data
+ * cannot override the automatic count.
+ */
 export function getEventsPlayed(team: RawTeam) {
-  return team.eventsPlayed || team.championships + team.runnerUp + team.secondRunnerUp + (team.top5Finishes || 0) + (team.finalistFinishes || team.grandFinals || 0) + (team.officialMatchFinalists || 0);
+  return (
+    Number(team.championships || 0) +
+    Number(team.runnerUp || 0) +
+    Number(team.secondRunnerUp || 0) +
+    Number(team.top5Finishes || 0) +
+    Number(team.finalistFinishes || team.grandFinals || 0) +
+    Number(team.officialMatchFinalists || 0)
+  );
 }
 
 export function rankTeams(teams: RawTeam[]): RankedTeam[] {
@@ -28,7 +40,8 @@ export function rankTeams(teams: RawTeam[]): RankedTeam[] {
       ...team,
       previousRank: Math.max(1, index + 1 + ((index % 5) - 2)),
       communityPoints: calculateCommunityPoints(team),
-      top3Finishes: team.championships + team.runnerUp + team.secondRunnerUp,
+      eventsPlayed: getEventsPlayed(team),
+      top3Finishes: Number(team.championships || 0) + Number(team.runnerUp || 0) + Number(team.secondRunnerUp || 0),
       slug: slugify(team.teamName),
       badge: team.status === "Banned" ? "Banned" : team.status === "Inactive" ? "Inactive" : team.championships >= 4 ? "Elite" : team.runnerUp >= 4 ? "Runner-Up Threat" : (team.officialMatchFinalists || 0) > 0 ? "Official Finalist" : "Contender",
       lastUpdated: new Date().toISOString()
