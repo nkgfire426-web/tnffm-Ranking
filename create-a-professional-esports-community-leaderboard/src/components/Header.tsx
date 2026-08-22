@@ -16,8 +16,6 @@ export function Header() {
     let active = true;
     async function loadSession() {
       try {
-        // The authenticated team endpoint is /api/team/me.
-        // It reads the 30-day httpOnly team session cookie set at login.
         const response = await fetch("/api/team/me", {
           credentials: "same-origin",
           cache: "no-store"
@@ -79,13 +77,18 @@ export function Header() {
           <Link href="/collaborators" className="hidden rounded-lg px-4 py-2 text-sm text-slate-300 transition hover:text-gold md:inline-flex">Collaborators</Link>
 
           {!loading && team ? (
-            <Link href="/team-dashboard" className="flex max-w-[150px] items-center gap-2 rounded-lg border border-gold/30 bg-black/60 px-2 py-1.5 transition hover:border-gold hover:bg-gold/10 sm:max-w-[210px] sm:px-3 sm:py-2" title="Open Team Dashboard">
-              <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full border border-gold/40 bg-black sm:h-9 sm:w-9">
+            <Link
+              href="/team-dashboard"
+              className="group flex max-w-[58px] items-center justify-center rounded-xl border border-gold/40 bg-gradient-to-br from-gold/15 via-black/80 to-black/60 p-1.5 shadow-[0_0_18px_rgba(212,175,55,0.12)] transition duration-200 hover:border-gold hover:shadow-[0_0_24px_rgba(212,175,55,0.25)] active:scale-95 sm:max-w-[210px] sm:justify-start sm:gap-2 sm:rounded-lg sm:p-1.5 sm:px-3 sm:py-2"
+              title={`Open ${team.teamName || "Team"} Dashboard`}
+            >
+              <span className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-gold/70 bg-black shadow-[0_0_12px_rgba(212,175,55,0.18)] ring-2 ring-gold/10 transition group-hover:ring-gold/30 sm:h-9 sm:w-9 sm:border sm:ring-0">
                 {team.logoUrl ? (
                   <img src={team.logoUrl} alt={`${team.teamName || "Team"} logo`} className="h-full w-full object-cover" />
                 ) : (
-                  <UserCircle2 className="h-5 w-5 text-gold" />
+                  <UserCircle2 className="h-6 w-6 text-gold sm:h-5 sm:w-5" />
                 )}
+                <span className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-br from-white/15 via-transparent to-transparent" />
               </span>
               <span className="hidden min-w-0 text-left sm:block">
                 <span className="block truncate text-xs text-slate-400">Team</span>
