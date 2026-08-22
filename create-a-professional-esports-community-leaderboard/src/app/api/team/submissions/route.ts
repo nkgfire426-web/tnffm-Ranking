@@ -45,6 +45,10 @@ export async function POST(request: NextRequest) {
   if (!Number.isInteger(finalPosition) || finalPosition < 1 || finalPosition > 18) return NextResponse.json({ ok: false, message: "Final position must be a whole number from 1 to 18." }, { status: 400 });
   if (!Number.isFinite(teamFinalPoints) || teamFinalPoints < 0) return NextResponse.json({ ok: false, message: "Enter your team's final tournament points." }, { status: 400 });
 
+  // The Google Apps Script expects a FinalLeaderboard value. Teams do not need
+  // to type it separately: it is generated from the position and team points.
+  const finalLeaderboard = `Position #${finalPosition} — ${teamFinalPoints} points`;
+
   return callSheets({
     action: "submitFinalLeaderboard",
     username: session.username,
@@ -54,6 +58,7 @@ export async function POST(request: NextRequest) {
     organizerName,
     prizePool,
     finalPosition,
+    finalLeaderboard,
     teamFinalPoints,
     proofUrl,
   });
