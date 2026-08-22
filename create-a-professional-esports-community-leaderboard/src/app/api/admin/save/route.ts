@@ -36,7 +36,7 @@ function normalizeTeamsForSheet(input: unknown[]) {
     const team = { ...(value as Record<string, unknown>) };
     const points = communityPoints(team);
     team.communityPoints = points;
-    team.eventsPlayed = eventsPlayed(team);
+    const suppliedEventsPlayed = num(team.eventsPlayed); team.eventsPlayed = suppliedEventsPlayed > 0 ? suppliedEventsPlayed : eventsPlayed(team);
     team.top3Finishes = num(team.championships) + num(team.runnerUp) + num(team.secondRunnerUp);
     team.officialMatchFinalists = Math.max(0, num(team.officialMatchFinalists));
     return team;
