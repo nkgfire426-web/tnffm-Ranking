@@ -14,20 +14,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, message: "Google Sheets webhook is not configured." }, { status: 503 });
     }
 
+    // This legacy endpoint is intentionally team-only. Sending events: [] or
+    // collaborators: [] would erase those sheets, so never include them here.
     const response = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       cache: "no-store",
       body: JSON.stringify({
-        teams: Array.isArray(payload.teams) ? payload.teams : [],
-        events: [],
-        collaborators: []
+        teams: Array.isArray(payload.teams) ? payload.teams : []
       })
     });
 
     const result = await response.json().catch(() => ({}));
     return NextResponse.json(
-      { ok: response.ok && result.ok !== false, message: result.message || (response.ok ? "Google Sheet synced." : "Google Sheet sync failed.") },
+      { ok: response.ok && result.ok !== false, message: result.message || (response.ok ? "Team rankings synced to Google Sheets." : "Google Sheet sync failed.") },
       { status: response.ok && result.ok !== false ? 200 : 502 }
     );
   } catch (error) {
