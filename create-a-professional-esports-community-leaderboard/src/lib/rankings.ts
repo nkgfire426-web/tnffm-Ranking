@@ -18,11 +18,6 @@ export function calculateCommunityPoints(team: RawTeam) {
   );
 }
 
-/**
- * Events Played is always derived from recorded results.
- * The stored eventsPlayed value is intentionally ignored so stale Sheet data
- * cannot override the automatic count.
- */
 export function getEventsPlayed(team: RawTeam) {
   return (
     Number(team.championships || 0) +
@@ -34,6 +29,20 @@ export function getEventsPlayed(team: RawTeam) {
   );
 }
 
+function automaticBadge(team: RawTeam) {
+  return team.status === "Banned"
+    ? "Banned"
+    : team.status === "Inactive"
+      ? "Inactive"
+      : Number(team.championships || 0) >= 4
+        ? "Elite"
+        : Number(team.runnerUp || 0) >= 4
+          ? "Runner-Up Threat"
+          : Number(team.officialMatchFinalists || 0) > 0
+            ? "Official Finalist"
+            : "Contender";
+}
+
 export function rankTeams(teams: RawTeam[]): RankedTeam[] {
   const ranked = teams
     .map((team, index) => ({
@@ -43,7 +52,8 @@ export function rankTeams(teams: RawTeam[]): RankedTeam[] {
       eventsPlayed: getEventsPlayed(team),
       top3Finishes: Number(team.championships || 0) + Number(team.runnerUp || 0) + Number(team.secondRunnerUp || 0),
       slug: slugify(team.teamName),
-      badge: team.status === "Banned" ? "Banned" : team.status === "Inactive" ? "Inactive" : team.championships >= 4 ? "Elite" : team.runnerUp >= 4 ? "Runner-Up Threat" : (team.officialMatchFinalists || 0) > 0 ? "Official Finalist" : "Contender",
+      // Admin can now set a custom badge. If it is empty, keep the automatic badge.
+      badge: String((team as any).badge || "").trim() || automaticBadge(team),
       lastUpdated: new Date().toISOString()
     }))
     .sort((a, b) => {
