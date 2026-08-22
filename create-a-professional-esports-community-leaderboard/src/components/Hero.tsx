@@ -12,6 +12,7 @@ type TournamentNews = {
   date?: string;
   type?: string;
   status?: string;
+  imageUrl?: string;
   link?: string;
 };
 
@@ -49,9 +50,7 @@ export function Hero({ teams, news = [] }: { teams: RankedTeam[]; news?: Tournam
             <Trophy className="h-6 w-6 text-gold" />
           </div>
           <div className="mt-4 space-y-3">
-            {updates.length ? updates.map((item, index) => (
-              <NewsItem key={item.id || `${item.title}-${index}`} item={item} />
-            )) : (
+            {updates.length ? updates.map((item, index) => <NewsItem key={item.id || `${item.title}-${index}`} item={item} />) : (
               <div className="rounded-xl border border-white/10 bg-black/30 p-5"><p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Latest update</p><h3 className="mt-2 font-rajdhani text-xl font-bold text-white">Final tournament leaderboard submissions are open</h3><p className="mt-2 text-sm leading-6 text-slate-400">Teams can submit their official completed tournament leaderboard for TNFFM ranking assessment.</p></div>
             )}
           </div>
@@ -68,8 +67,11 @@ function InfoCard({ label, value }: { label: string; value: string }) {
 
 function NewsItem({ item }: { item: TournamentNews }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-black/30 p-4 transition hover:border-gold/20">
-      <div className="flex items-start gap-3"><div className="mt-0.5 rounded-lg border border-gold/20 bg-gold/5 p-2"><CalendarDays className="h-4 w-4 text-gold" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-bold uppercase tracking-[0.18em] text-gold">{item.type || "Update"}</span>{item.date && <span className="text-[10px] text-slate-600">{item.date}</span>}</div><h3 className="mt-1 font-rajdhani text-lg font-bold text-white">{item.title}</h3>{item.description && <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">{item.description}</p>}{item.link && /^https?:\/\//i.test(item.link) && <a href={item.link} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs font-bold text-gold hover:underline">View update →</a>}</div></div>
-    </div>
+    <article className="overflow-hidden rounded-xl border border-white/10 bg-black/30 transition hover:border-gold/20">
+      {item.imageUrl && /^https?:\/\//i.test(item.imageUrl) && <div className="aspect-[16/7] w-full overflow-hidden bg-black"><img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover" loading="lazy" onError={(e) => { e.currentTarget.style.display = "none"; }} /></div>}
+      <div className="p-4">
+        <div className="flex items-start gap-3"><div className="mt-0.5 rounded-lg border border-gold/20 bg-gold/5 p-2"><CalendarDays className="h-4 w-4 text-gold" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-bold uppercase tracking-[0.18em] text-gold">{item.type || "Update"}</span>{item.date && <span className="text-[10px] text-slate-600">{item.date}</span>}</div><h3 className="mt-1 font-rajdhani text-lg font-bold text-white">{item.title}</h3>{item.description && <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">{item.description}</p>}{item.link && /^https?:\/\//i.test(item.link) && <a href={item.link} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs font-bold text-gold hover:underline">View update →</a>}</div></div>
+      </div>
+    </article>
   );
 }
