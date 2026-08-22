@@ -111,4 +111,4 @@ export function AdminDashboard({ initialTeams, initialEvents, initialCollaborato
   </section>;
 }
 
-function Field({ label, value, onChange, type = "text" }: { label: string; value: string | number; onChange: (value: string) => void; type?: string }) { return <label className="block"><span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">{label}</span><input type={type} value={value ?? ""} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-white/10 bg-black/45 px-3 py-2.5 text-white outline-none transition focus:border-gold/60" /></label>; }
+function Field({ label, value, onChange, type = "text" }: { label: string; value: string | number | null | undefined; onChange: (value: string) => void; type?: string }) { return <label className="block"><span className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-400">{label}</span><input type={type} value={value ?? ""} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-white/10 bg-black/45 px-3 py-2.5 text-white outline-none transition focus:border-gold/60" /></label>; }
