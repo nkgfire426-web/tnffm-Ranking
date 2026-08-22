@@ -14,21 +14,19 @@ function normalizeImageUrl(src: string) {
   const value = String(src || "").trim();
   if (!value) return "";
 
-  const driveFile = value.match(/drive\.google\.com\/file\/d\/([^/]+)/i);
-  if (driveFile?.[1]) {
-    return `https://drive.google.com/thumbnail?id=${driveFile[1]}&sz=w1000`;
-  }
-
-  const driveOpen = value.match(/[?&]id=([^&]+)/i);
-  if (/drive\.google\.com/i.test(value) && driveOpen?.[1]) {
-    return `https://drive.google.com/thumbnail?id=${driveOpen[1]}&sz=w1000`;
+  // Use the site's image proxy for Google Drive logos. This avoids the
+  // Drive viewer/redirect problem that can make a perfectly valid logo
+  // appear blank in the browser.
+  if (/drive\.google\.com/i.test(value)) {
+    return `/api/team/logo?url=${encodeURIComponent(value)}`;
   }
 
   return value;
 }
 
 export function TeamLogo({ src, name, size = 48, champion = false }: TeamLogoProps) {
-  const logoSrc = normalizeImageUrl(src) || `https://api.dicebear.com/8.x/shapes/svg?seed=${encodeURIComponent(name || "team")}`;
+  const fallback = `https://api.dicebear.com/8.x/shapes/svg?seed=${encodeURIComponent(name || "team")}`;
+  const logoSrc = normalizeImageUrl(src) || fallback;
 
   return (
     <div
@@ -45,7 +43,6 @@ export function TeamLogo({ src, name, size = 48, champion = false }: TeamLogoPro
         height={size - 8}
         className="h-full w-full rounded-md object-contain"
         onError={(event) => {
-          const fallback = `https://api.dicebear.com/8.x/shapes/svg?seed=${encodeURIComponent(name || "team")}`;
           if (event.currentTarget.src !== fallback) event.currentTarget.src = fallback;
         }}
       />
