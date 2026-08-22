@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import type React from "react";
-import { CalendarDays, Crown, LayoutDashboard, ListChecks, LogIn, MoreVertical, ScrollText, Users } from "lucide-react";
+import { CalendarDays, Crown, ListChecks, LogIn, MoreVertical, ScrollText, Users } from "lucide-react";
 
 export function Header() {
   return (
@@ -44,7 +44,6 @@ export function Header() {
               Login
             </button>
             <div className="invisible absolute right-0 top-12 w-56 translate-y-2 rounded-xl border border-white/10 bg-black/95 p-2 opacity-0 shadow-glow backdrop-blur-xl transition group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
-              <MenuLink href="/admin" icon={<LayoutDashboard className="h-4 w-4" />} label="Admin Login" />
               <MenuLink href="/team-login" icon={<LogIn className="h-4 w-4" />} label="Team Login" />
             </div>
           </div>
