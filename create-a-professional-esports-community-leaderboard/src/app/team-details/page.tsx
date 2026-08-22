@@ -2,7 +2,9 @@ import { Header } from "@/components/Header";
 import { TeamDetailsClient } from "@/components/TeamDetailsClient";
 import { getRankedTeams } from "@/lib/google-sheets";
 
-export const revalidate = 60;
+// Team details are backed by live Google Sheets data; keep this route dynamic.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function TeamDetailsPage() {
   const teams = await getRankedTeams();
