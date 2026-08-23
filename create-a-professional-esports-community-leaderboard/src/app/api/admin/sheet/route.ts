@@ -33,15 +33,40 @@ export async function GET(request: NextRequest) {
       headers: { Accept: "application/json" }
     });
 
-    const result = await response.json().catch(() => ({}));
+    const result = await response.json().catch(() => null);
 
-    if (!response.ok || result?.ok === false) {
+    if (!response.ok) {
       return NextResponse.json(
         {
           ok: false,
-          message:
-            result?.message ||
-            `Google Apps Script returned ${response.status}.`
+          message: `Google Apps Script HTTP error (${response.status}).`
+        },
+        { status: 502 }
+      );
+    }
+
+    if (!result || typeof result !== "object") {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: "Google Apps Script returned HTTP 200, but the response was not valid JSON. Check the Apps Script Web App deployment."
+        },
+        { status: 502 }
+      );
+    }
+
+    if (result.ok === false) {
+      const scriptMessage =
+        typeof result.message === "string" && result.message.trim()
+          ? result.message.trim()
+          : typeof result.error === "string" && result.error.trim()
+            ? result.error.trim()
+            : "The Apps Script reported an application error.";
+
+      return NextResponse.json(
+        {
+          ok: false,
+          message: `Google Apps Script error (HTTP 200): ${scriptMessage}`
         },
         { status: 502 }
       );
@@ -50,12 +75,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         ok: true,
-        teams: Array.isArray(result?.teams) ? result.teams : [],
-        events: Array.isArray(result?.events) ? result.events : [],
-        collaborators: Array.isArray(result?.collaborators)
+        teams: Array.isArray(result.teams) ? result.teams : [],
+        events: Array.isArray(result.events) ? result.events : [],
+        collaborators: Array.isArray(result.collaborators)
           ? result.collaborators
           : [],
-        news: Array.isArray(result?.news) ? result.news : []
+        news: Array.isArray(result.news) ? result.news : []
       },
       {
         headers: {
