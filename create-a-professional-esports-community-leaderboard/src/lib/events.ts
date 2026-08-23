@@ -55,31 +55,48 @@ function parseResults(value: unknown): EventResult[] {
   }
 }
 
+function asNumber(value: unknown, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function asBoolean(value: unknown) {
+  if (value === true) return true;
+  const text = String(value ?? "").trim().toLowerCase();
+  return text === "true" || text === "yes" || text === "1" || text === "published";
+}
+
 function normalizeEvent(event: Record<string, unknown>): TrackedEvent {
-  const matches = Math.max(0, Number(event.matchesPlayed ?? event.MatchesPlayed ?? 0) || 0);
-  const results = parseResults(event.results ?? event.Results).map((r) => ({
-    teamName: String(r.teamName ?? "").trim(),
-    ...(r.teamSlug ? { teamSlug: String(r.teamSlug) } : {}),
-    rank: Math.max(1, Number(r.rank) || 1),
-    positionPoints: Math.max(0, Number(r.positionPoints) || 0),
-    kills: Math.max(0, Number(r.kills) || 0),
-    booyahs: Math.max(0, Number(r.booyahs) || 0),
-    killRatio: matches > 0 ? (Math.max(0, Number(r.kills) || 0) / matches) : 0,
-    booyahRatio: matches > 0 ? ((Math.max(0, Number(r.booyahs) || 0) / matches) * 100) : 0,
-    total: Math.max(0, Number(r.positionPoints) || 0) + Math.max(0, Number(r.kills) || 0)
-  })).filter((r) => r.teamName);
+  const matches = Math.max(0, Math.floor(asNumber(event.matchesPlayed ?? event.MatchesPlayed, 0)));
+  const results = parseResults(event.results ?? event.Results).map((r) => {
+    const kills = Math.max(0, Math.floor(asNumber(r.kills, 0)));
+    const booyahs = Math.max(0, Math.floor(asNumber(r.booyahs, 0)));
+    const positionPoints = Math.max(0, asNumber(r.positionPoints, 0));
+    const rank = Math.max(1, Math.floor(asNumber(r.rank, 1)));
+    return {
+      teamName: String(r.teamName ?? "").trim(),
+      ...(r.teamSlug ? { teamSlug: String(r.teamSlug).trim() } : {}),
+      rank,
+      positionPoints,
+      kills,
+      booyahs,
+      killRatio: matches > 0 ? kills / matches : 0,
+      booyahRatio: matches > 0 ? (booyahs / matches) * 100 : 0,
+      total: positionPoints + kills
+    };
+  }).filter((r) => r.teamName);
 
   return {
-    name: String(event.name ?? "").trim(),
-    organizer: String(event.organizer ?? "").trim(),
-    teams: Number.isFinite(Number(event.teams)) ? Number(event.teams) : results.length,
-    prize: String(event.prize ?? "").trim(),
-    status: String(event.status ?? "Pending") as TrackedEvent["status"],
-    counted: String(event.counted ?? "").trim(),
-    date: String(event.date ?? "").trim(),
-    ...(event.notes != null ? { notes: String(event.notes) } : {}),
+    name: String(event.name ?? event.Name ?? "").trim(),
+    organizer: String(event.organizer ?? event.Organizer ?? "").trim(),
+    teams: Math.max(0, Math.floor(asNumber(event.teams ?? event.Teams, results.length))),
+    prize: String(event.prize ?? event.Prize ?? "").trim(),
+    status: String(event.status ?? event.Status ?? "Pending") as TrackedEvent["status"],
+    counted: String(event.counted ?? event.Counted ?? "").trim(),
+    date: String(event.date ?? event.Date ?? "").trim(),
+    ...(event.notes != null || event.Notes != null ? { notes: String(event.notes ?? event.Notes ?? "") } : {}),
     matchesPlayed: matches,
-    published: event.published === true || String(event.published ?? "").toLowerCase() === "true",
+    published: asBoolean(event.published ?? event.Published),
     results
   };
 }
@@ -90,7 +107,12 @@ async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
   try {
-    const response = await fetch(withCacheBuster(rawUrl), { method: "GET", cache: "no-store", headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0" }, signal: controller.signal });
+    const response = await fetch(withCacheBuster(rawUrl), {
+      method: "GET",
+      cache: "no-store",
+      headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0" },
+      signal: controller.signal
+    });
     if (!response.ok) return null;
     const payload = await response.json();
     if (payload?.ok === false) return null;
