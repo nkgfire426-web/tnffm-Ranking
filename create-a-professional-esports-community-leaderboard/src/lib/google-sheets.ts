@@ -1,6 +1,7 @@
 import { sampleTeams } from "./sample-data";
 import { rankTeams, slugify } from "./rankings";
 import type { RawTeam, RankedTeam } from "./types";
+import { getTrackedEvents } from "./events";
 import { readFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
@@ -31,7 +32,7 @@ async function fetchSheetPayload(): Promise<any | null> {
   const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
   if (!webhookUrl) return null;
   try {
-    const response = await fetch(webhookUrl, { method: "GET", cache: "no-store", headers: { Accept: "application/json" } });
+    const response = await fetch(webhookUrl, { method: "GET", cache: "no-store", headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0" } });
     if (!response.ok) throw new Error(`Google Apps Script returned ${response.status}`);
     return await response.json();
   } catch (error) {
@@ -65,7 +66,8 @@ export async function getTournamentNews(): Promise<TournamentNews[]> {
 export async function getRankedTeams(): Promise<RankedTeam[]> {
   try {
     const teams = (await fetchFromGoogleAppsScript()) || (await fetchFromLocalFile()) || sampleTeams;
-    return rankTeams(teams.length ? teams : sampleTeams);
+    const events = await getTrackedEvents();
+    return rankTeams(teams.length ? teams : sampleTeams, events);
   } catch (error) {
     console.error(error);
     return rankTeams((await fetchFromLocalFile()) || sampleTeams);
@@ -108,10 +110,10 @@ export async function updateGoogleSheetValues(sheetId: string, range: string, ro
 }
 
 export function teamsToSheetRows(teams: Array<RawTeam | RankedTeam>) {
-  const header = ["Team", "Slug", "Rank", "PreviousRank", "CommunityPoints", "Badge", "Logo URL", "Banner URL", "Kills", "Booyahs", "Championships", "RunnerUp", "SecondRunnerUp", "Top3Finishes", "FinalistFinishes", "OfficialMatchFinalists", "EventsPlayed", "GrandFinals", "WinRate", "KillRatio", "Players", "Status", "Description", "LastUpdated"];
+  const header = ["Team", "Slug", "Rank", "PreviousRank", "CommunityPoints", "Badge", "Logo URL", "Banner URL", "Kills", "Booyahs", "Championships", "RunnerUp", "SecondRunnerUp", "Top3Finishes", "FinalistFinishes", "OfficialMatchFinalists", "EventsPlayed", "GrandFinals", "WinRate", "KillRatio", "BooyahRatio", "PositionPoints", "TotalPoints", "MatchesPlayed", "Players", "Status", "Description", "LastUpdated"];
   const rows = teams.map((t) => {
     const ranked = t as RankedTeam;
-    return [t.teamName || "", ranked.slug || "", String(ranked.rank ?? ""), String(ranked.previousRank ?? ""), String(ranked.communityPoints ?? ""), String(ranked.badge ?? ""), t.logoUrl || "", (t as any).bannerUrl || "", String((t as RawTeam).kills ?? 0), String((t as RawTeam).booyahs ?? 0), String((t as RawTeam).championships ?? 0), String((t as RawTeam).runnerUp ?? 0), String((t as RawTeam).secondRunnerUp ?? 0), String((ranked.top3Finishes as number) ?? (t as any).top3Finishes ?? 0), String((t as RawTeam).finalistFinishes ?? 0), String((t as RawTeam).officialMatchFinalists ?? 0), String((t as RawTeam).eventsPlayed ?? 0), String((t as RawTeam).grandFinals ?? 0), String((t as RawTeam).winRate ?? 0), String((t as RawTeam).killRatio ?? 0), String(t.players ?? 5), t.status || "Active", t.description || "", String(ranked.lastUpdated ?? "")];
+    return [t.teamName || "", ranked.slug || "", String(ranked.rank ?? ""), String(ranked.previousRank ?? ""), String(ranked.communityPoints ?? ""), String(ranked.badge ?? ""), t.logoUrl || "", (t as any).bannerUrl || "", String((t as RawTeam).kills ?? 0), String((t as RawTeam).booyahs ?? 0), String((t as RawTeam).championships ?? 0), String((t as RawTeam).runnerUp ?? 0), String((t as RawTeam).secondRunnerUp ?? 0), String((ranked.top3Finishes as number) ?? (t as any).top3Finishes ?? 0), String((t as RawTeam).finalistFinishes ?? 0), String((t as RawTeam).officialMatchFinalists ?? 0), String((t as RawTeam).eventsPlayed ?? 0), String((t as RawTeam).grandFinals ?? 0), String((t as RawTeam).winRate ?? 0), String((t as RawTeam).killRatio ?? 0), String((t as RawTeam).booyahRatio ?? 0), String((t as RawTeam).positionPoints ?? 0), String((t as RawTeam).totalPoints ?? 0), String((t as RawTeam).matchesPlayed ?? 0), String(t.players ?? 5), t.status || "Active", t.description || "", String(ranked.lastUpdated ?? "")];
   });
   return [header, ...rows];
 }
