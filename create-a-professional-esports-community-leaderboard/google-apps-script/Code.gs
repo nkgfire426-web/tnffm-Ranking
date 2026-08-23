@@ -1,36 +1,474 @@
-const TEAM_HEADERS=["Team","Slug","Rank","PreviousRank","CommunityPoints","Badge","Logo URL","Banner URL","Kills","Booyahs","Championships","RunnerUp","SecondRunnerUp","Top3Finishes","FinalistFinishes","OfficialMatchFinalists","EventsPlayed","GrandFinals","WinRate","KillRatio","Players","Roster","Status","Description","LastUpdated","Mobile Number","ApprovedSubmissionPoints"];
-const ACCOUNT_HEADERS=["Username","PasswordHash","TeamSlug","Email","Status","CreatedAt","UpdatedAt"];
-const NEWS_HEADERS=["ID","Title","Description","Date","Type","Status","ImageURL","Link"];
-const SUBMISSION_HEADERS=["SubmissionID","Username","TeamSlug","Team","TournamentName","TournamentDate","OrganizerName","PrizePool","FinalPosition","FinalLeaderboard","ProofURL","Status","TNFFMPoints","ReviewNotes","ReviewedBy","ReviewedAt","CreatedAt","Applied","TeamFinalPoints"];
-function getSpreadsheet_(){const id=String(PropertiesService.getScriptProperties().getProperty("SPREADSHEET_ID")||"").trim();if(id)return SpreadsheetApp.openById(id);const active=SpreadsheetApp.getActiveSpreadsheet();if(active)return active;throw new Error("Google Sheet is not configured. Set Script Property SPREADSHEET_ID.");}
-function json_(data){return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);}
-function errorMessage_(e){return String(e&&e.message?e.message:e);}
-function value_(v){return v==null?"":v;}
-function number_(v){const n=Number(v);return isFinite(n)?n:0;}
-function getOrCreateSheet_(ss,name){return ss.getSheetByName(name)||ss.insertSheet(name);}
-function ensureHeaders_(sheet,headers){if(sheet.getMaxColumns()<headers.length)sheet.insertColumnsAfter(sheet.getMaxColumns(),headers.length-sheet.getMaxColumns());sheet.getRange(1,1,1,headers.length).setValues([headers]);sheet.setFrozenRows(1);}
-function doGet(){try{const ss=getSpreadsheet_();syncApprovedSubmissions_(ss);return json_({ok:true,teams:readTeams_(ss),events:readObjects_(ss,"Events"),collaborators:readObjects_(ss,"Collaborators"),news:readNews_(ss)});}catch(e){return json_({ok:false,message:errorMessage_(e)});}}
-function doPost(e){try{if(!e||!e.postData||!e.postData.contents)return json_({ok:false,message:"Request body is missing."});const body=JSON.parse(e.postData.contents||"{}"),ss=getSpreadsheet_();switch(String(body.action||"")){case"registerTeam":return registerTeam_(ss,body);case"loginTeam":return loginTeam_(ss,body);case"getTeam":return getTeam_(ss,body);case"updateTeamProfile":return updateTeamProfile_(ss,body);case"changeTeamPassword":return changeTeamPassword_(ss,body);case"resetTeamPassword":return resetTeamPassword_(ss,body);case"uploadLogo":return uploadLogo_(body);case"submitFinalLeaderboard":return submitFinalLeaderboard_(ss,body);case"getTeamSubmissions":return getTeamSubmissions_(ss,body);case"submitFeedback":return submitFeedback_(ss,body);}if(Array.isArray(body.teams))writeTeams_(ss,body.teams);if(Array.isArray(body.events))writeObjects_(ss,"Events",body.events);if(Array.isArray(body.collaborators))writeObjects_(ss,"Collaborators",body.collaborators);if(Array.isArray(body.news))writeObjects_(ss,"TournamentNews",body.news);SpreadsheetApp.flush();return json_({ok:true,message:"TNFFM data updated successfully."});}catch(e){return json_({ok:false,message:errorMessage_(e)});}}
-function registerTeam_(ss,b){const teamName=String(b.teamName||"").trim().replace(/\s+/g," "),username=String(b.username||"").trim().toLowerCase(),hash=String(b.passwordHash||"").trim(),email=String(b.email||"").trim().toLowerCase();if(teamName.length<2||teamName.length>60)return json_({ok:false,message:"Team name must be between 2 and 60 characters."});if(!/^[a-z0-9._-]{4,32}$/.test(username))return json_({ok:false,message:"Username must be 4-32 characters and use letters, numbers, dot, underscore or hyphen."});if(!hash)return json_({ok:false,message:"Password is required."});const accounts=getOrCreateSheet_(ss,"TeamAccounts");ensureHeaders_(accounts,ACCOUNT_HEADERS);const ar=accounts.getDataRange().getValues();for(let i=1;i<ar.length;i++)if(String(ar[i][0]||"").trim().toLowerCase()===username)return json_({ok:false,message:"Username is already registered."});const teams=readTeams_(ss);if(teams.some(t=>String(t.teamName||"").trim().toLowerCase()===teamName.toLowerCase()))return json_({ok:false,message:"A team with this name already exists. Please use a different team name."});const slug=createUniqueSlug_(teamName,teams),now=new Date().toISOString();teams.push({teamName,slug,rank:0,previousRank:0,communityPoints:0,badge:"",logoUrl:"",bannerUrl:"",kills:0,booyahs:0,championships:0,runnerUp:0,secondRunnerUp:0,top3Finishes:0,finalistFinishes:0,officialMatchFinalists:0,eventsPlayed:0,grandFinals:0,winRate:0,killRatio:0,players:0,roster:[],status:"Active",description:"",lastUpdated:now,mobileNumber:"",approvedSubmissionPoints:0});writeTeams_(ss,teams);accounts.appendRow([username,hash,slug,email,"Active",now,now]);SpreadsheetApp.flush();return json_({ok:true,status:"Active",username,teamSlug:slug,teamName,message:"Team account created successfully."});}
-function loginTeam_(ss,b){const username=String(b.username||"").trim().toLowerCase(),hash=String(b.passwordHash||"").trim(),sheet=ss.getSheetByName("TeamAccounts");if(!username||!hash)return json_({ok:false,message:"Username and password are required."});if(!sheet||sheet.getLastRow()<2)return json_({ok:false,message:"No team accounts are configured."});const rows=sheet.getDataRange().getValues();for(let i=1;i<rows.length;i++)if(String(rows[i][0]||"").trim().toLowerCase()===username){if(String(rows[i][4]||"Active").toLowerCase()!=="active")return json_({ok:false,message:"This team account is not active."});if(String(rows[i][1]||"").trim()===hash)return json_({ok:true,username,teamSlug:String(rows[i][2]||""),email:String(rows[i][3]||""),status:"Active",message:"Login successful."});return json_({ok:false,message:"Invalid username or password."});}return json_({ok:false,message:"Invalid username or password."});}
-function getTeam_(ss,b){const slug=String(b.teamSlug||"").trim();if(!slug)return json_({ok:false,message:"Team slug is required."});const team=readTeams_(ss).find(t=>t.slug===slug);return team?json_({ok:true,team}):json_({ok:false,message:"Team not found."});}
-function findAccount_(ss,username){const sheet=ss.getSheetByName("TeamAccounts");if(!sheet||sheet.getLastRow()<2)return null;const u=String(username||"").trim().toLowerCase(),rows=sheet.getDataRange().getValues();for(let i=1;i<rows.length;i++)if(String(rows[i][0]||"").trim().toLowerCase()===u)return{username:String(rows[i][0]||""),teamSlug:String(rows[i][2]||""),email:String(rows[i][3]||""),status:String(rows[i][4]||"Active"),passwordHash:String(rows[i][1]||"")};return null;}
-function updateTeamProfile_(ss,b){const username=String(b.username||"").trim().toLowerCase(),slug=String(b.teamSlug||"").trim(),account=findAccount_(ss,username);if(!account||account.teamSlug!==slug||account.status.toLowerCase()!=="active")return json_({ok:false,message:"Team account is not authorized."});const teams=readTeams_(ss),team=teams.find(t=>t.slug===slug);if(!team)return json_({ok:false,message:"Team not found."});if(typeof b.logoUrl==="string")team.logoUrl=b.logoUrl.trim();if(typeof b.bannerUrl==="string")team.bannerUrl=b.bannerUrl.trim();if(typeof b.description==="string")team.description=b.description.trim();if(typeof b.mobileNumber==="string")team.mobileNumber=b.mobileNumber.trim();if(Array.isArray(b.roster)){team.roster=b.roster.map(p=>({name:String(p.name||"").trim(),uid:String(p.uid||"").trim()})).filter(p=>p.name||p.uid);team.players=team.roster.length;}team.lastUpdated=new Date().toISOString();writeTeams_(ss,teams);SpreadsheetApp.flush();return json_({ok:true,team,message:"Team profile updated successfully."});}
-function changeTeamPassword_(ss,b){const username=String(b.username||"").trim().toLowerCase(),currentHash=String(b.currentPasswordHash||"").trim(),newHash=String(b.newPasswordHash||"").trim(),account=findAccount_(ss,username);if(!account||account.status.toLowerCase()!=="active")return json_({ok:false,message:"Team account not found."});if(account.passwordHash!==currentHash)return json_({ok:false,message:"Current password is incorrect."});if(!newHash)return json_({ok:false,message:"New password is required."});const sheet=ss.getSheetByName("TeamAccounts"),rows=sheet.getDataRange().getValues();for(let i=1;i<rows.length;i++)if(String(rows[i][0]||"").trim().toLowerCase()===username){sheet.getRange(i+1,2).setValue(newHash);sheet.getRange(i+1,7).setValue(new Date().toISOString());SpreadsheetApp.flush();return json_({ok:true,message:"Password changed successfully."});}return json_({ok:false,message:"Team account not found."});}
-function resetTeamPassword_(ss,b){const username=String(b.username||"").trim().toLowerCase(),email=String(b.email||"").trim().toLowerCase(),newHash=String(b.passwordHash||"").trim(),account=findAccount_(ss,username);if(!account||account.email.toLowerCase()!==email)return json_({ok:false,message:"Username and registered email do not match."});if(account.status.toLowerCase()!=="active")return json_({ok:false,message:"This account is not active."});if(!newHash)return json_({ok:false,message:"New password is required."});const sheet=ss.getSheetByName("TeamAccounts"),rows=sheet.getDataRange().getValues();for(let i=1;i<rows.length;i++)if(String(rows[i][0]||"").trim().toLowerCase()===username){sheet.getRange(i+1,2).setValue(newHash);sheet.getRange(i+1,7).setValue(new Date().toISOString());SpreadsheetApp.flush();return json_({ok:true,message:"Password reset successfully. You can now login."});}return json_({ok:false,message:"Team account not found."});}
-function createUniqueSlug_(name,teams){const base=String(name||"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,45)||"team";let slug=base,n=2;while(teams.some(t=>String(t.slug||"").toLowerCase()===slug))slug=base+"-"+n++;return slug;}
-function writeTeams_(ss,teams){const sheet=getOrCreateSheet_(ss,"Teams"),rows=teams.map(t=>[t.teamName||"",t.slug||"",value_(t.rank),value_(t.previousRank),value_(t.communityPoints),t.badge||"",t.logoUrl||"",t.bannerUrl||"",value_(t.kills),value_(t.booyahs),value_(t.championships),value_(t.runnerUp),value_(t.secondRunnerUp),value_(t.top3Finishes),value_(t.finalistFinishes),value_(t.officialMatchFinalists),value_(t.eventsPlayed),value_(t.grandFinals),value_(t.winRate),value_(t.killRatio),value_(t.players),typeof t.roster==="string"?t.roster:JSON.stringify(t.roster||[]),t.status||"Active",t.description||"",t.lastUpdated||"",t.mobileNumber||"",value_(t.approvedSubmissionPoints)]);ensureHeaders_(sheet,TEAM_HEADERS);sheet.clearContents();sheet.getRange(1,1,1,TEAM_HEADERS.length).setValues([TEAM_HEADERS]);if(rows.length)sheet.getRange(2,1,rows.length,TEAM_HEADERS.length).setValues(rows);sheet.setFrozenRows(1);}
-function readTeams_(ss){const sheet=getOrCreateSheet_(ss,"Teams");ensureHeaders_(sheet,TEAM_HEADERS);if(sheet.getLastRow()<2)return[];const values=sheet.getRange(1,1,sheet.getLastRow(),TEAM_HEADERS.length).getValues();return values.slice(1).filter(r=>String(r[0]||"").trim()).map(r=>{let roster=[];try{roster=r[21]?JSON.parse(String(r[21])):[]}catch(e){}return{teamName:String(r[0]||""),slug:String(r[1]||""),rank:number_(r[2]),previousRank:number_(r[3]),communityPoints:number_(r[4]),badge:String(r[5]||""),logoUrl:String(r[6]||""),bannerUrl:String(r[7]||""),kills:number_(r[8]),booyahs:number_(r[9]),championships:number_(r[10]),runnerUp:number_(r[11]),secondRunnerUp:number_(r[12]),top3Finishes:number_(r[13]),finalistFinishes:number_(r[14]),officialMatchFinalists:number_(r[15]),eventsPlayed:number_(r[16]),grandFinals:number_(r[17]),winRate:number_(r[18]),killRatio:number_(r[19]),players:number_(r[20]),roster,status:String(r[22]||"Active"),description:String(r[23]||""),lastUpdated:String(r[24]||""),mobileNumber:String(r[25]||""),approvedSubmissionPoints:number_(r[26])};});}
-function writeObjects_(ss,name,objects){const sheet=getOrCreateSheet_(ss,name);sheet.clearContents();if(!objects||!objects.length)return;const headers=[];objects.forEach(o=>Object.keys(o||{}).forEach(k=>{if(headers.indexOf(k)<0)headers.push(k);}));if(sheet.getMaxColumns()<headers.length)sheet.insertColumnsAfter(sheet.getMaxColumns(),headers.length-sheet.getMaxColumns());const rows=objects.map(o=>headers.map(k=>{const v=o[k];return v==null?"":typeof v==="object"?JSON.stringify(v):v;}));sheet.getRange(1,1,1,headers.length).setValues([headers]);sheet.getRange(2,1,rows.length,headers.length).setValues(rows);sheet.setFrozenRows(1);}
-function readObjects_(ss,name){const sheet=ss.getSheetByName(name);if(!sheet||sheet.getLastRow()<2)return[];const values=sheet.getDataRange().getValues(),headers=values[0].map(String);return values.slice(1).filter(r=>r.some(v=>String(v||"").trim())).map(r=>{const o={};headers.forEach((h,i)=>o[h]=r[i]);return o;});}
-function uploadLogo_(b){if(!b.dataUrl||typeof b.dataUrl!=="string")return json_({ok:false,message:"Logo data is missing."});const match=b.dataUrl.match(/^data:([^;]+);base64,(.+)$/);if(!match)return json_({ok:false,message:"Invalid image data."});const name=String(b.fileName||"tnffm-logo").replace(/[^a-zA-Z0-9._-]/g,"_").slice(0,80),blob=Utilities.newBlob(Utilities.base64Decode(match[2]),match[1],name),file=DriveApp.createFile(blob);file.setSharing(DriveApp.Access.ANYONE_WITH_LINK,DriveApp.Permission.VIEW);return json_({ok:true,url:"https://drive.google.com/uc?export=view&id="+encodeURIComponent(file.getId()),fileId:file.getId()});}
-function ensureNewsSheet_(ss){const sheet=getOrCreateSheet_(ss,"TournamentNews");if(sheet.getLastColumn()>=7){const currentHeaders=sheet.getRange(1,1,1,Math.max(7,sheet.getLastColumn())).getValues()[0].map(String);const linkIndex=currentHeaders.findIndex(h=>h.trim().toLowerCase()==="link");const imageIndex=currentHeaders.findIndex(h=>h.trim().toLowerCase()==="imageurl");if(linkIndex===6&&imageIndex===-1){sheet.insertColumnBefore(7);sheet.getRange(1,7).setValue("ImageURL");}}ensureHeaders_(sheet,NEWS_HEADERS);return sheet;}
-function readNews_(ss){const sheet=ensureNewsSheet_(ss);if(sheet.getLastRow()<2)return[];const rows=sheet.getDataRange().getValues();return rows.slice(1).filter(r=>String(r[1]||"").trim()).map(r=>({id:String(r[0]||""),title:String(r[1]||""),description:String(r[2]||""),date:String(r[3]||""),type:String(r[4]||"Update"),status:String(r[5]||"Published"),imageUrl:String(r[6]||""),link:String(r[7]||"")}));}
-function ensureSubmissionsSheet_(ss){const sheet=getOrCreateSheet_(ss,"RankingSubmissions");ensureHeaders_(sheet,SUBMISSION_HEADERS);return sheet;}
-function submitFinalLeaderboard_(ss,b){const username=String(b.username||"").trim().toLowerCase(),teamSlug=String(b.teamSlug||"").trim(),account=findAccount_(ss,username);if(!account||account.teamSlug!==teamSlug||account.status.toLowerCase()!=="active")return json_({ok:false,message:"Team account is not authorized."});const tournamentName=String(b.tournamentName||"").trim(),tournamentDate=String(b.tournamentDate||"").trim(),organizerName=String(b.organizerName||"").trim(),prizePool=String(b.prizePool||"").trim(),finalPosition=number_(b.finalPosition),finalLeaderboard=String(b.finalLeaderboard||"").trim(),proofUrl=String(b.proofUrl||"").trim(),teamFinalPoints=number_(b.teamFinalPoints);if(tournamentName.length<2)return json_({ok:false,message:"Tournament name is required."});if(!tournamentDate||!organizerName)return json_({ok:false,message:"Tournament date and organizer are required."});if(finalPosition<1||finalPosition>18)return json_({ok:false,message:"Final position must be between 1 and 18."});if(teamFinalPoints<0)return json_({ok:false,message:"Team final points cannot be negative."});if(!finalLeaderboard)return json_({ok:false,message:"Final tournament leaderboard is required."});const sheet=ensureSubmissionsSheet_(ss),id="TNFFM-"+Utilities.getUuid().slice(0,8).toUpperCase(),team=readTeams_(ss).find(t=>t.slug===teamSlug),now=new Date().toISOString();sheet.appendRow([id,username,teamSlug,team?team.teamName:"",tournamentName,tournamentDate,organizerName,prizePool,finalPosition,finalLeaderboard,proofUrl,"Pending","","","","",now,"No",teamFinalPoints]);SpreadsheetApp.flush();return json_({ok:true,submissionId:id,status:"Pending",message:"Final tournament leaderboard submitted successfully."});}
-function getTeamSubmissions_(ss,b){const username=String(b.username||"").trim().toLowerCase(),teamSlug=String(b.teamSlug||"").trim(),account=findAccount_(ss,username);if(!account||account.teamSlug!==teamSlug)return json_({ok:false,message:"Team account is not authorized."});const sheet=ensureSubmissionsSheet_(ss);if(sheet.getLastRow()<2)return json_({ok:true,submissions:[]});const rows=sheet.getDataRange().getValues(),submissions=rows.slice(1).filter(r=>String(r[1]||"").toLowerCase()===username).map(r=>({submissionId:String(r[0]||""),tournamentName:String(r[4]||""),tournamentDate:String(r[5]||""),organizerName:String(r[6]||""),prizePool:String(r[7]||""),finalPosition:number_(r[8]),finalLeaderboard:String(r[9]||""),proofUrl:String(r[10]||""),status:String(r[11]||"Pending"),tnffmPoints:number_(r[12]),reviewNotes:String(r[13]||""),createdAt:String(r[16]||""),teamFinalPoints:number_(r[18])}));return json_({ok:true,submissions});}
-function pointsForFinalPosition_(position){if(position===1)return 100;if(position===2)return 70;if(position===3)return 50;if(position>=4&&position<=5)return 25;if(position>=6&&position<=18)return 15;return 0;}
-function syncApprovedSubmissions_(ss){const sheet=ensureSubmissionsSheet_(ss);if(sheet.getLastRow()<2)return;const teams=readTeams_(ss),rows=sheet.getDataRange().getValues();let changed=false;for(let i=1;i<rows.length;i++){const status=String(rows[i][11]||"Pending").trim().toLowerCase(),applied=String(rows[i][17]||"No").trim().toLowerCase();if(status!=="approved"||applied==="yes")continue;const slug=String(rows[i][2]||"").trim(),position=number_(rows[i][8]),points=pointsForFinalPosition_(position),team=teams.find(t=>t.slug===slug);if(!team)continue;team.approvedSubmissionPoints=number_(team.approvedSubmissionPoints)+points;team.eventsPlayed=number_(team.eventsPlayed)+1;team.lastUpdated=new Date().toISOString();if(position===1)team.championships=number_(team.championships)+1;else if(position===2)team.runnerUp=number_(team.runnerUp)+1;else if(position===3)team.secondRunnerUp=number_(team.secondRunnerUp)+1;else if(position>=4&&position<=5)team.top3Finishes=number_(team.top3Finishes)+1;else if(position>=6&&position<=18)team.finalistFinishes=number_(team.finalistFinishes)+1;sheet.getRange(i+1,13).setValue(points);sheet.getRange(i+1,18).setValue("Yes");if(!rows[i][15])sheet.getRange(i+1,16).setValue(new Date().toISOString());const events=readObjects_(ss,"Events"),eventName=String(rows[i][4]||"").trim(),exists=events.some(e=>String(e.name||"").trim()===eventName&&String(e.organizer||"").trim()===String(rows[i][6]||"").trim()&&String(e.date||"").trim()===String(rows[i][5]||"").trim());if(!exists)events.push({name:eventName,date:String(rows[i][5]||""),organizer:String(rows[i][6]||""),teams:18,prize:String(rows[i][7]||""),status:"Verified",counted:"Final Tournament Result",notes:"Approved from team final leaderboard submission."});writeObjects_(ss,"Events",events);changed=true;}if(changed){writeTeams_(ss,teams);SpreadsheetApp.flush();}}
-function recalculateApprovedSubmissions_(ss){const sheet=ensureSubmissionsSheet_(ss),teams=readTeams_(ss);teams.forEach(team=>team.approvedSubmissionPoints=0);if(sheet.getLastRow()<2){writeTeams_(ss,teams);return;}const rows=sheet.getDataRange().getValues();for(let i=1;i<rows.length;i++){const status=String(rows[i][11]||"").trim().toLowerCase();if(status!=="approved")continue;const slug=String(rows[i][2]||"").trim(),position=number_(rows[i][8]),points=pointsForFinalPosition_(position),team=teams.find(t=>t.slug===slug);if(team)team.approvedSubmissionPoints+=points;sheet.getRange(i+1,13).setValue(points);sheet.getRange(i+1,18).setValue("Yes");}writeTeams_(ss,teams);SpreadsheetApp.flush();}
-const FEEDBACK_HEADERS=["FeedbackID","Username","TeamSlug","Type","Message","Status","CreatedAt","AdminReply"];
-function submitFeedback_(ss,b){const username=String(b.username||"").trim().toLowerCase(),account=findAccount_(ss,username);if(!account||account.status.toLowerCase()!=="active")return json_({ok:false,message:"Team account is not authorized."});const message=String(b.message||"").trim(),type=String(b.type||"Suggestion").trim();if(message.length<5)return json_({ok:false,message:"Feedback is too short."});const sheet=getOrCreateSheet_(ss,"Feedback");ensureHeaders_(sheet,FEEDBACK_HEADERS);const id="FB-"+Utilities.getUuid().slice(0,8).toUpperCase();sheet.appendRow([id,username,account.teamSlug,type,message,"Pending",new Date().toISOString(),""]);SpreadsheetApp.flush();return json_({ok:true,feedbackId:id,message:"Feedback sent successfully."});}
+const TEAM_HEADERS = ["Team","Slug","Logo URL","Banner URL","Players","Roster","Status","Description","LastUpdated","Mobile Number"];
+const ACCOUNT_HEADERS = ["Username","PasswordHash","TeamSlug","Email","Status","CreatedAt","UpdatedAt"];
+const NEWS_HEADERS = ["ID","Title","Description","Date","Type","Status","ImageURL","Link"];
+const SUBMISSION_HEADERS = ["SubmissionID","Username","TeamSlug","Team","TournamentName","TournamentDate","OrganizerName","PrizePool","FinalPosition","FinalLeaderboard","ProofURL","Status","ReviewNotes","ReviewedBy","ReviewedAt","CreatedAt"];
+const FEEDBACK_HEADERS = ["FeedbackID","Username","TeamSlug","Team","Message","Status","AdminReply","CreatedAt","UpdatedAt"];
+
+function getSpreadsheet_() {
+  const id = String(PropertiesService.getScriptProperties().getProperty("SPREADSHEET_ID") || "").trim();
+  if (id) return SpreadsheetApp.openById(id);
+  const active = SpreadsheetApp.getActiveSpreadsheet();
+  if (active) return active;
+  throw new Error("Google Sheet is not configured. Set Script Property SPREADSHEET_ID.");
+}
+
+function json_(data) {
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function errorMessage_(e) {
+  return String(e && e.message ? e.message : e);
+}
+
+function value_(v) {
+  return v == null ? "" : v;
+}
+
+function getOrCreateSheet_(ss, name) {
+  return ss.getSheetByName(name) || ss.insertSheet(name);
+}
+
+function ensureHeaders_(sheet, headers) {
+  if (sheet.getMaxColumns() < headers.length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+  }
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.setFrozenRows(1);
+}
+
+function doGet() {
+  try {
+    const ss = getSpreadsheet_();
+    return json_({
+      ok: true,
+      teams: readTeams_(ss),
+      events: readObjects_(ss, "Events"),
+      collaborators: readObjects_(ss, "Collaborators"),
+      news: readNews_(ss)
+    });
+  } catch (e) {
+    return json_({ ok: false, message: errorMessage_(e) });
+  }
+}
+
+function doPost(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return json_({ ok: false, message: "Request body is missing." });
+    }
+
+    const body = JSON.parse(e.postData.contents || "{}");
+    const ss = getSpreadsheet_();
+    const action = String(body.action || "");
+
+    switch (action) {
+      case "registerTeam": return registerTeam_(ss, body);
+      case "loginTeam": return loginTeam_(ss, body);
+      case "getTeam": return getTeam_(ss, body);
+      case "updateTeamProfile": return updateTeamProfile_(ss, body);
+      case "changeTeamPassword": return changeTeamPassword_(ss, body);
+      case "resetTeamPassword": return resetTeamPassword_(ss, body);
+      case "uploadLogo": return uploadLogo_(body);
+      case "submitFinalLeaderboard": return submitFinalLeaderboard_(ss, body);
+      case "getTeamSubmissions": return getTeamSubmissions_(ss, body);
+      case "submitFeedback": return submitFeedback_(ss, body);
+    }
+
+    if (Array.isArray(body.teams)) writeTeams_(ss, body.teams);
+    if (Array.isArray(body.events)) writeObjects_(ss, "Events", body.events);
+    if (Array.isArray(body.collaborators)) writeObjects_(ss, "Collaborators", body.collaborators);
+    if (Array.isArray(body.news)) writeObjects_(ss, "TournamentNews", body.news);
+
+    SpreadsheetApp.flush();
+    return json_({ ok: true, message: "TNFFM data updated successfully." });
+  } catch (e) {
+    return json_({ ok: false, message: errorMessage_(e) });
+  }
+}
+
+function registerTeam_(ss, b) {
+  const teamName = String(b.teamName || "").trim().replace(/\s+/g, " ");
+  const username = String(b.username || "").trim().toLowerCase();
+  const hash = String(b.passwordHash || "").trim();
+  const email = String(b.email || "").trim().toLowerCase();
+
+  if (teamName.length < 2 || teamName.length > 60) return json_({ ok: false, message: "Team name must be between 2 and 60 characters." });
+  if (!/^[a-z0-9._-]{4,32}$/.test(username)) return json_({ ok: false, message: "Username must be 4-32 characters and use letters, numbers, dot, underscore or hyphen." });
+  if (!hash) return json_({ ok: false, message: "Password is required." });
+
+  const accounts = getOrCreateSheet_(ss, "TeamAccounts");
+  ensureHeaders_(accounts, ACCOUNT_HEADERS);
+  const accountRows = accounts.getDataRange().getValues();
+  for (let i = 1; i < accountRows.length; i++) {
+    if (String(accountRows[i][0] || "").trim().toLowerCase() === username) {
+      return json_({ ok: false, message: "Username is already registered." });
+    }
+  }
+
+  const teams = readTeams_(ss);
+  if (teams.some(t => String(t.teamName || "").trim().toLowerCase() === teamName.toLowerCase())) {
+    return json_({ ok: false, message: "A team with this name already exists. Please use a different team name." });
+  }
+
+  const slug = createUniqueSlug_(teamName, teams);
+  const now = new Date().toISOString();
+  teams.push({
+    teamName: teamName,
+    slug: slug,
+    logoUrl: "",
+    bannerUrl: "",
+    players: 0,
+    roster: [],
+    status: "Active",
+    description: "",
+    lastUpdated: now,
+    mobileNumber: ""
+  });
+
+  writeTeams_(ss, teams);
+  accounts.appendRow([username, hash, slug, email, "Active", now, now]);
+  SpreadsheetApp.flush();
+
+  return json_({ ok: true, status: "Active", username: username, teamSlug: slug, teamName: teamName, message: "Team account created successfully." });
+}
+
+function loginTeam_(ss, b) {
+  const username = String(b.username || "").trim().toLowerCase();
+  const hash = String(b.passwordHash || "").trim();
+  const sheet = ss.getSheetByName("TeamAccounts");
+
+  if (!username || !hash) return json_({ ok: false, message: "Username and password are required." });
+  if (!sheet || sheet.getLastRow() < 2) return json_({ ok: false, message: "No team accounts are configured." });
+
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0] || "").trim().toLowerCase() === username) {
+      if (String(rows[i][4] || "Active").toLowerCase() !== "active") return json_({ ok: false, message: "This team account is not active." });
+      if (String(rows[i][1] || "").trim() === hash) {
+        return json_({ ok: true, username: username, teamSlug: String(rows[i][2] || ""), email: String(rows[i][3] || ""), status: "Active", message: "Login successful." });
+      }
+      return json_({ ok: false, message: "Invalid username or password." });
+    }
+  }
+  return json_({ ok: false, message: "Invalid username or password." });
+}
+
+function getTeam_(ss, b) {
+  const slug = String(b.teamSlug || "").trim();
+  if (!slug) return json_({ ok: false, message: "Team slug is required." });
+  const team = readTeams_(ss).find(t => t.slug === slug);
+  return team ? json_({ ok: true, team: team }) : json_({ ok: false, message: "Team not found." });
+}
+
+function findAccount_(ss, username) {
+  const sheet = ss.getSheetByName("TeamAccounts");
+  if (!sheet || sheet.getLastRow() < 2) return null;
+  const u = String(username || "").trim().toLowerCase();
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0] || "").trim().toLowerCase() === u) {
+      return {
+        username: String(rows[i][0] || ""),
+        teamSlug: String(rows[i][2] || ""),
+        email: String(rows[i][3] || ""),
+        status: String(rows[i][4] || "Active"),
+        passwordHash: String(rows[i][1] || "")
+      };
+    }
+  }
+  return null;
+}
+
+function updateTeamProfile_(ss, b) {
+  const username = String(b.username || "").trim().toLowerCase();
+  const slug = String(b.teamSlug || "").trim();
+  const account = findAccount_(ss, username);
+
+  if (!account || account.teamSlug !== slug || account.status.toLowerCase() !== "active") return json_({ ok: false, message: "Team account is not authorized." });
+
+  const teams = readTeams_(ss);
+  const team = teams.find(t => t.slug === slug);
+  if (!team) return json_({ ok: false, message: "Team not found." });
+
+  if (typeof b.logoUrl === "string") team.logoUrl = b.logoUrl.trim();
+  if (typeof b.bannerUrl === "string") team.bannerUrl = b.bannerUrl.trim();
+  if (typeof b.description === "string") team.description = b.description.trim();
+  if (typeof b.mobileNumber === "string") team.mobileNumber = b.mobileNumber.trim();
+  if (Array.isArray(b.roster)) {
+    team.roster = b.roster.map(p => ({ name: String(p.name || "").trim(), uid: String(p.uid || "").trim() })).filter(p => p.name || p.uid);
+    team.players = team.roster.length;
+  }
+
+  team.lastUpdated = new Date().toISOString();
+  writeTeams_(ss, teams);
+  SpreadsheetApp.flush();
+  return json_({ ok: true, team: team, message: "Team profile updated successfully." });
+}
+
+function changeTeamPassword_(ss, b) {
+  const username = String(b.username || "").trim().toLowerCase();
+  const currentHash = String(b.currentPasswordHash || "").trim();
+  const newHash = String(b.newPasswordHash || "").trim();
+  const account = findAccount_(ss, username);
+
+  if (!account || account.status.toLowerCase() !== "active") return json_({ ok: false, message: "Team account not found." });
+  if (account.passwordHash !== currentHash) return json_({ ok: false, message: "Current password is incorrect." });
+  if (!newHash) return json_({ ok: false, message: "New password is required." });
+
+  const sheet = ss.getSheetByName("TeamAccounts");
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0] || "").trim().toLowerCase() === username) {
+      sheet.getRange(i + 1, 2).setValue(newHash);
+      sheet.getRange(i + 1, 7).setValue(new Date().toISOString());
+      SpreadsheetApp.flush();
+      return json_({ ok: true, message: "Password changed successfully." });
+    }
+  }
+  return json_({ ok: false, message: "Team account not found." });
+}
+
+function resetTeamPassword_(ss, b) {
+  const username = String(b.username || "").trim().toLowerCase();
+  const email = String(b.email || "").trim().toLowerCase();
+  const newHash = String(b.passwordHash || "").trim();
+  const account = findAccount_(ss, username);
+
+  if (!account || account.email.toLowerCase() !== email) return json_({ ok: false, message: "Username and registered email do not match." });
+  if (account.status.toLowerCase() !== "active") return json_({ ok: false, message: "This account is not active." });
+  if (!newHash) return json_({ ok: false, message: "New password is required." });
+
+  const sheet = ss.getSheetByName("TeamAccounts");
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (String(rows[i][0] || "").trim().toLowerCase() === username) {
+      sheet.getRange(i + 1, 2).setValue(newHash);
+      sheet.getRange(i + 1, 7).setValue(new Date().toISOString());
+      SpreadsheetApp.flush();
+      return json_({ ok: true, message: "Password reset successfully. You can now login." });
+    }
+  }
+  return json_({ ok: false, message: "Team account not found." });
+}
+
+function createUniqueSlug_(name, teams) {
+  const base = String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 45) || "team";
+  let slug = base;
+  let n = 2;
+  while (teams.some(t => String(t.slug || "").toLowerCase() === slug)) slug = base + "-" + n++;
+  return slug;
+}
+
+function writeTeams_(ss, teams) {
+  const sheet = getOrCreateSheet_(ss, "Teams");
+  ensureHeaders_(sheet, TEAM_HEADERS);
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, TEAM_HEADERS.length).setValues([TEAM_HEADERS]);
+
+  const rows = (teams || []).map(t => [
+    t.teamName || t.Team || "",
+    t.slug || t.Slug || "",
+    t.logoUrl || t["Logo URL"] || "",
+    t.bannerUrl || t["Banner URL"] || "",
+    value_(t.players || t.Players || 0),
+    typeof t.roster === "string" ? t.roster : JSON.stringify(t.roster || []),
+    t.status || t.Status || "Active",
+    t.description || t.Description || "",
+    t.lastUpdated || t.LastUpdated || new Date().toISOString(),
+    t.mobileNumber || t["Mobile Number"] || ""
+  ]);
+
+  if (rows.length) sheet.getRange(2, 1, rows.length, TEAM_HEADERS.length).setValues(rows);
+  sheet.setFrozenRows(1);
+}
+
+function readTeams_(ss) {
+  const sheet = getOrCreateSheet_(ss, "Teams");
+  ensureHeaders_(sheet, TEAM_HEADERS);
+  if (sheet.getLastRow() < 2) return [];
+
+  const values = sheet.getRange(1, 1, sheet.getLastRow(), TEAM_HEADERS.length).getValues();
+  return values.slice(1).filter(r => String(r[0] || "").trim()).map(r => {
+    let roster = [];
+    try { roster = r[5] ? JSON.parse(String(r[5])) : []; } catch (e) { roster = []; }
+    return {
+      teamName: String(r[0] || ""),
+      slug: String(r[1] || ""),
+      logoUrl: String(r[2] || ""),
+      bannerUrl: String(r[3] || ""),
+      players: Number(r[4]) || 0,
+      roster: roster,
+      status: String(r[6] || "Active"),
+      description: String(r[7] || ""),
+      lastUpdated: String(r[8] || ""),
+      mobileNumber: String(r[9] || "")
+    };
+  });
+}
+
+function writeObjects_(ss, name, objects) {
+  const sheet = getOrCreateSheet_(ss, name);
+  sheet.clearContents();
+  if (!objects || !objects.length) return;
+
+  const headers = [];
+  objects.forEach(o => Object.keys(o || {}).forEach(k => { if (headers.indexOf(k) < 0) headers.push(k); }));
+  if (!headers.length) return;
+  if (sheet.getMaxColumns() < headers.length) sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
+
+  const rows = objects.map(o => headers.map(k => {
+    const v = o[k];
+    return v == null ? "" : typeof v === "object" ? JSON.stringify(v) : v;
+  }));
+
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  sheet.setFrozenRows(1);
+}
+
+function readObjects_(ss, name) {
+  const sheet = ss.getSheetByName(name);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+  return values.slice(1).filter(r => r.some(v => String(v || "").trim())).map(r => {
+    const o = {};
+    headers.forEach((h, i) => o[h] = r[i]);
+    return o;
+  });
+}
+
+function uploadLogo_(b) {
+  if (!b.dataUrl || typeof b.dataUrl !== "string") return json_({ ok: false, message: "Logo data is missing." });
+  const match = b.dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return json_({ ok: false, message: "Invalid image data." });
+
+  const name = String(b.fileName || "tnffm-logo").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80);
+  const blob = Utilities.newBlob(Utilities.base64Decode(match[2]), match[1], name);
+  const file = DriveApp.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  return json_({ ok: true, url: "https://drive.google.com/uc?export=view&id=" + encodeURIComponent(file.getId()), fileId: file.getId() });
+}
+
+function ensureNewsSheet_(ss) {
+  const sheet = getOrCreateSheet_(ss, "TournamentNews");
+  ensureHeaders_(sheet, NEWS_HEADERS);
+  return sheet;
+}
+
+function readNews_(ss) {
+  const sheet = ensureNewsSheet_(ss);
+  if (sheet.getLastRow() < 2) return [];
+  const rows = sheet.getDataRange().getValues();
+  return rows.slice(1).filter(r => String(r[1] || "").trim()).map(r => ({
+    id: String(r[0] || ""),
+    title: String(r[1] || ""),
+    description: String(r[2] || ""),
+    date: String(r[3] || ""),
+    type: String(r[4] || "Update"),
+    status: String(r[5] || "Published"),
+    imageUrl: String(r[6] || ""),
+    link: String(r[7] || "")
+  }));
+}
+
+function ensureSubmissionsSheet_(ss) {
+  const sheet = getOrCreateSheet_(ss, "Submissions");
+  ensureHeaders_(sheet, SUBMISSION_HEADERS);
+  return sheet;
+}
+
+function submitFinalLeaderboard_(ss, b) {
+  const username = String(b.username || "").trim().toLowerCase();
+  const teamSlug = String(b.teamSlug || "").trim();
+  const account = findAccount_(ss, username);
+
+  if (!account || account.teamSlug !== teamSlug || account.status.toLowerCase() !== "active") {
+    return json_({ ok: false, message: "Team account is not authorized." });
+  }
+
+  const team = readTeams_(ss).find(t => t.slug === teamSlug);
+  if (!team) return json_({ ok: false, message: "Team not found." });
+
+  const sheet = ensureSubmissionsSheet_(ss);
+  const id = "SUB-" + Utilities.getUuid().replace(/-/g, "").slice(0, 12).toUpperCase();
+  const now = new Date().toISOString();
+
+  sheet.appendRow([
+    id,
+    username,
+    teamSlug,
+    team.teamName,
+    b.tournamentName || "",
+    b.tournamentDate || "",
+    b.organizerName || "",
+    b.prizePool || "",
+    b.finalPosition || "",
+    b.finalLeaderboard || "",
+    b.proofUrl || "",
+    "Pending",
+    "",
+    "",
+    "",
+    now
+  ]);
+
+  SpreadsheetApp.flush();
+  return json_({ ok: true, submissionId: id, status: "Pending", message: "Submission received for admin review. It does not change team profile data or create ranking points." });
+}
+
+function getTeamSubmissions_(ss, b) {
+  const username = String(b.username || "").trim().toLowerCase();
+  const teamSlug = String(b.teamSlug || "").trim();
+  const account = findAccount_(ss, username);
+
+  if (!account || account.teamSlug !== teamSlug || account.status.toLowerCase() !== "active") {
+    return json_({ ok: false, message: "Team account is not authorized." });
+  }
+
+  const sheet = ensureSubmissionsSheet_(ss);
+  if (sheet.getLastRow() < 2) return json_({ ok: true, submissions: [] });
+
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0].map(String);
+  const submissions = rows.slice(1).filter(r => String(r[2] || "") === teamSlug).map(r => {
+    const o = {};
+    headers.forEach((h, i) => o[h] = r[i]);
+    return o;
+  });
+
+  return json_({ ok: true, submissions: submissions });
+}
+
+function submitFeedback_(ss, b) {
+  const username = String(b.username || "").trim().toLowerCase();
+  const teamSlug = String(b.teamSlug || "").trim();
+  const message = String(b.message || "").trim();
+  const account = findAccount_(ss, username);
+
+  if (!account || account.teamSlug !== teamSlug || account.status.toLowerCase() !== "active") return json_({ ok: false, message: "Team account is not authorized." });
+  if (!message) return json_({ ok: false, message: "Feedback message is required." });
+
+  const team = readTeams_(ss).find(t => t.slug === teamSlug);
+  const sheet = getOrCreateSheet_(ss, "Feedback");
+  ensureHeaders_(sheet, FEEDBACK_HEADERS);
+  const id = "FDB-" + Utilities.getUuid().replace(/-/g, "").slice(0, 12).toUpperCase();
+  const now = new Date().toISOString();
+
+  sheet.appendRow([id, username, teamSlug, team ? team.teamName : "", message, "New", "", now, now]);
+  SpreadsheetApp.flush();
+  return json_({ ok: true, feedbackId: id, message: "Feedback sent successfully." });
+}
+
+function setupTNFFM() {
+  const ss = getSpreadsheet_();
+  ensureHeaders_(getOrCreateSheet_(ss, "Teams"), TEAM_HEADERS);
+  ensureHeaders_(getOrCreateSheet_(ss, "TeamAccounts"), ACCOUNT_HEADERS);
+  ensureHeaders_(getOrCreateSheet_(ss, "TournamentNews"), NEWS_HEADERS);
+  ensureHeaders_(getOrCreateSheet_(ss, "Submissions"), SUBMISSION_HEADERS);
+  ensureHeaders_(getOrCreateSheet_(ss, "Feedback"), FEEDBACK_HEADERS);
+  getOrCreateSheet_(ss, "Events");
+  getOrCreateSheet_(ss, "Collaborators");
+  SpreadsheetApp.flush();
+  return { ok: true, message: "TNFFM community sheets are ready. No Ranking sheet is required." };
+}
