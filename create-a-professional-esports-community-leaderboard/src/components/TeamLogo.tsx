@@ -10,18 +10,30 @@ type TeamLogoProps = {
   champion?: boolean;
 };
 
-// Official fallback used whenever a team has no logo or its logo cannot be loaded.
-const DEFAULT_FREE_FIRE_MAX_LOGO = "/brand/free-fire-max-logo.svg";
+// Inline fallback so a missing public asset can never produce a broken-image icon.
+const DEFAULT_LOGO =
+  "data:image/svg+xml;charset=UTF-8," +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><rect width="256" height="256" rx="40" fill="#050505"/><path d="M34 56h188v144H34z" fill="#111" stroke="#f5c518" stroke-width="8"/><text x="128" y="132" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="54" font-weight="900" fill="#f5c518">FF</text><text x="128" y="176" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="25" font-weight="800" fill="#fff">MAX</text></svg>`
+  );
 
 function normalizeImageUrl(src?: string | null) {
   const value = String(src || "").trim();
-  if (!value) return DEFAULT_FREE_FIRE_MAX_LOGO;
+  if (!value) return DEFAULT_LOGO;
 
-  if (/drive\.google\.com/i.test(value)) {
+  // Every Google Drive sharing format is routed through the server-side
+  // proxy so the browser never has to load Drive HTML as an image.
+  if (/drive\.google\.com|drive\.usercontent\.google\.com/i.test(value)) {
     return `/api/team/logo?url=${encodeURIComponent(value)}`;
   }
 
-  return value;
+  try {
+    const parsed = new URL(value);
+    if (!/^https?:$/.test(parsed.protocol)) return DEFAULT_LOGO;
+    return parsed.toString();
+  } catch {
+    return DEFAULT_LOGO;
+  }
 }
 
 export function TeamLogo({ src, name, size = 48, champion = false }: TeamLogoProps) {
@@ -41,10 +53,11 @@ export function TeamLogo({ src, name, size = 48, champion = false }: TeamLogoPro
         width={size - 8}
         height={size - 8}
         className="h-full w-full rounded-md object-contain"
+        referrerPolicy="no-referrer"
         onError={(event) => {
           if (event.currentTarget.dataset.fallbackApplied === "true") return;
           event.currentTarget.dataset.fallbackApplied = "true";
-          event.currentTarget.src = DEFAULT_FREE_FIRE_MAX_LOGO;
+          event.currentTarget.src = DEFAULT_LOGO;
         }}
       />
     </div>
