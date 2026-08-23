@@ -10,20 +10,31 @@ type TeamLogoProps = {
   champion?: boolean;
 };
 
-// Inline fallback so a missing public asset can never produce a broken-image icon.
 const DEFAULT_LOGO =
   "data:image/svg+xml;charset=UTF-8," +
   encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><rect width="256" height="256" rx="40" fill="#050505"/><path d="M34 56h188v144H34z" fill="#111" stroke="#f5c518" stroke-width="8"/><text x="128" y="132" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="54" font-weight="900" fill="#f5c518">FF</text><text x="128" y="176" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="25" font-weight="800" fill="#fff">MAX</text></svg>`
   );
 
+function cleanImageValue(src?: string | null) {
+  let value = String(src || "").trim();
+
+  // Google Sheets can contain IMAGE("https://...") instead of the raw URL.
+  // Never send the formula itself to the browser/proxy.
+  const imageFormula = value.match(/^=IMAGE\(\s*["']([^"']+)["']/i);
+  if (imageFormula?.[1]) value = imageFormula[1].trim();
+
+  // Also support a URL accidentally wrapped in quotes by Sheets/admin input.
+  value = value.replace(/^['"]|['"]$/g, "").trim();
+  return value;
+}
+
 /**
- * Converts every supported Google Drive sharing URL into our same-origin
- * image proxy. This helper is intentionally shared by logos, banners and
- * tournament/news images so Drive links work everywhere in the site.
+ * Converts supported Google Drive sharing URLs into the same-origin image
+ * proxy. Raw http(s) image URLs are kept unchanged.
  */
 export function normalizeImageUrl(src?: string | null) {
-  const value = String(src || "").trim();
+  const value = cleanImageValue(src);
   if (!value) return DEFAULT_LOGO;
 
   if (/drive\.google\.com|drive\.usercontent\.google\.com/i.test(value)) {
