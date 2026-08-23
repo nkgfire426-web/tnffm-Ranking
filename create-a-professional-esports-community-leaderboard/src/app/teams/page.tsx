@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Header } from "@/components/Header";
+import { TeamLogo } from "@/components/TeamLogo";
 import { getRegisteredTeams } from "@/lib/google-sheets";
 import { slugify } from "@/lib/rankings";
 
@@ -33,13 +34,17 @@ export default async function CommunityTeamsPage() {
               return (
                 <Link key={team.teamName + slug} href={`/team-details?team=${encodeURIComponent(slug)}`} className="group rounded-2xl border border-white/10 bg-white/[0.025] p-5 transition hover:-translate-y-1 hover:border-gold/40 hover:bg-gold/[0.04]">
                   <div className="flex items-center gap-4">
-                    <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-gold/20 bg-black/60 p-2">
-                      {team.logoUrl ? <img src={team.logoUrl} alt={`${team.teamName} logo`} className="h-full w-full object-contain" /> : <span className="font-rajdhani text-2xl font-black text-gold">FF</span>}
+                    <TeamLogo src={team.logoUrl} name={team.teamName} size={64} />
+                    <div className="min-w-0">
+                      <h2 className="truncate font-rajdhani text-2xl font-bold uppercase text-white group-hover:text-gold">{team.teamName}</h2>
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500">Tamil Community Team</p>
                     </div>
-                    <div className="min-w-0"><h2 className="truncate font-rajdhani text-2xl font-bold uppercase text-white group-hover:text-gold">{team.teamName}</h2><p className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500">Tamil Community Team</p></div>
                   </div>
                   <div className="mt-5 border-t border-white/10 pt-4">
-                    <div className="flex items-center justify-between text-xs"><span className="font-bold uppercase tracking-wider text-slate-500">Registered Team</span><span className="font-bold text-slate-400">{Number(team.players || 0)} Players</span></div>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold uppercase tracking-wider text-slate-500">Registered Team</span>
+                      <span className="font-bold text-slate-400">{Number(team.players || 0)} Players</span>
+                    </div>
                     {team.description ? <p className="mt-3 line-clamp-2 text-sm leading-5 text-slate-400">{team.description}</p> : null}
                   </div>
                 </Link>
