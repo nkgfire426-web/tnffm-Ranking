@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { Award, BarChart3, Share2, Trophy, Users, type LucideIcon } from "lucide-react";
 import type { RawTeam } from "@/lib/types";
 import { formatDateISO } from "@/lib/format-date";
-import { TeamLogo } from "./TeamLogo";
+import { normalizeImageUrl, TeamLogo } from "./TeamLogo";
 
 export function TeamProfile({ team }: { team: RawTeam & { slug?: string } }) {
   const rank = typeof (team as any).rank === "number" ? (team as any).rank : 0;
@@ -17,6 +17,7 @@ export function TeamProfile({ team }: { team: RawTeam & { slug?: string } }) {
   const eventsPlayed = team.eventsPlayed || 0;
   const finalistFinishes = team.finalistFinishes || team.grandFinals || 0;
   const slug = team.slug || team.teamName.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const bannerSrc = normalizeImageUrl(team.bannerUrl);
 
   const history: [string, string, LucideIcon][] = [
     ["Championship History", `${team.championships || 0} title wins across eligible TNFFM events`, Trophy],
@@ -27,11 +28,12 @@ export function TeamProfile({ team }: { team: RawTeam & { slug?: string } }) {
     <div>
       <section className="relative min-h-[420px] overflow-hidden border-b border-white/10">
         <Image
-          src={team.bannerUrl || "https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=1600&auto=format&fit=crop"}
+          src={bannerSrc}
           alt={`${team.teamName} banner`}
           fill
           priority
           className="object-cover opacity-45"
+          unoptimized
         />
         <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/60 to-black/30" />
         <div className="relative mx-auto flex min-h-[420px] max-w-7xl items-end px-4 py-12 sm:px-6 lg:px-8">
