@@ -13,6 +13,10 @@ export type RawTeam = {
   grandFinals: number;
   winRate: number;
   killRatio: number;
+  booyahRatio?: number;
+  positionPoints?: number;
+  totalPoints?: number;
+  matchesPlayed?: number;
   approvedSubmissionPoints?: number;
   rankingEligible?: boolean;
   registrationStatus?: "Registered" | "Hidden";
