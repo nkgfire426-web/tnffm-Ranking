@@ -55,5 +55,6 @@ export type SortKey = keyof Pick<
   | "kills"
   | "winRate"
   | "killRatio"
+  | "booyahRatio"
   | "lastUpdated"
 >;
