@@ -53,6 +53,8 @@ export type SortKey = keyof Pick<
   | "grandFinals"
   | "booyahs"
   | "kills"
+  | "positionPoints"
+  | "totalPoints"
   | "winRate"
   | "killRatio"
   | "booyahRatio"
