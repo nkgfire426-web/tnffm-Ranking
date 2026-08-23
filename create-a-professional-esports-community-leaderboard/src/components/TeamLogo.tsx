@@ -17,12 +17,15 @@ const DEFAULT_LOGO =
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><rect width="256" height="256" rx="40" fill="#050505"/><path d="M34 56h188v144H34z" fill="#111" stroke="#f5c518" stroke-width="8"/><text x="128" y="132" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="54" font-weight="900" fill="#f5c518">FF</text><text x="128" y="176" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="25" font-weight="800" fill="#fff">MAX</text></svg>`
   );
 
-function normalizeImageUrl(src?: string | null) {
+/**
+ * Converts every supported Google Drive sharing URL into our same-origin
+ * image proxy. This helper is intentionally shared by logos, banners and
+ * tournament/news images so Drive links work everywhere in the site.
+ */
+export function normalizeImageUrl(src?: string | null) {
   const value = String(src || "").trim();
   if (!value) return DEFAULT_LOGO;
 
-  // Every Google Drive sharing format is routed through the server-side
-  // proxy so the browser never has to load Drive HTML as an image.
   if (/drive\.google\.com|drive\.usercontent\.google\.com/i.test(value)) {
     return `/api/team/logo?url=${encodeURIComponent(value)}`;
   }
