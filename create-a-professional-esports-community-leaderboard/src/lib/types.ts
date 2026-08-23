@@ -14,11 +14,14 @@ export type RawTeam = {
   winRate: number;
   killRatio: number;
   approvedSubmissionPoints?: number;
+  rankingEligible?: boolean;
+  registrationStatus?: "Registered" | "Hidden";
   status?: "Active" | "Inactive" | "Banned";
   description?: string;
   bannerUrl?: string;
   players?: number;
   roster?: { name: string; uid: string }[];
+  mobileNumber?: string;
 };
 
 export type RankedTeam = RawTeam & {
