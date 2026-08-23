@@ -17,12 +17,59 @@ export type TournamentNews = {
   link?: string;
 };
 
+const DEFAULT_LOGO_URL = "https://i.imgur.com/6YQfM6M.png";
+
+function asNumber(value: unknown, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function normalizeLogo(url: unknown) {
+  const value = String(url ?? "").trim();
+  return value || DEFAULT_LOGO_URL;
+}
+
+function normalizeTeam(input: Record<string, any>): RawTeam {
+  const teamName = String(input.teamName ?? input.Team ?? input.team ?? "").trim();
+  const matches = Math.max(0, asNumber(input.matchesPlayed ?? input.MatchesPlayed, 0));
+  const kills = Math.max(0, asNumber(input.kills ?? input.Kills, 0));
+  const booyahs = Math.max(0, asNumber(input.booyahs ?? input.Booyahs, 0));
+
+  return {
+    ...input,
+    teamName,
+    slug: String(input.slug ?? input.Slug ?? slugify(teamName)).trim() || slugify(teamName),
+    logoUrl: normalizeLogo(input.logoUrl ?? input["Logo URL"] ?? input.LogoURL),
+    bannerUrl: String(input.bannerUrl ?? input["Banner URL"] ?? "").trim(),
+    players: Math.max(0, asNumber(input.players ?? input.Players, 0)),
+    status: String(input.status ?? input.Status ?? "Active"),
+    description: String(input.description ?? input.Description ?? ""),
+    kills,
+    booyahs,
+    championships: Math.max(0, asNumber(input.championships ?? input.Championships, 0)),
+    runnerUp: Math.max(0, asNumber(input.runnerUp ?? input.RunnerUp, 0)),
+    secondRunnerUp: Math.max(0, asNumber(input.secondRunnerUp ?? input.SecondRunnerUp, 0)),
+    top5Finishes: Math.max(0, asNumber(input.top5Finishes ?? input.Top5Finishes, 0)),
+    finalistFinishes: Math.max(0, asNumber(input.finalistFinishes ?? input.FinalistFinishes, 0)),
+    officialMatchFinalists: Math.max(0, asNumber(input.officialMatchFinalists ?? input.OfficialMatchFinalists, 0)),
+    eventsPlayed: Math.max(0, asNumber(input.eventsPlayed ?? input.EventsPlayed, 0)),
+    grandFinals: Math.max(0, asNumber(input.grandFinals ?? input.GrandFinals, 0)),
+    matchesPlayed: matches,
+    positionPoints: Math.max(0, asNumber(input.positionPoints ?? input.PositionPoints, 0)),
+    totalPoints: Math.max(0, asNumber(input.totalPoints ?? input.TotalPoints, 0)),
+    killRatio: matches > 0 ? kills / matches : 0,
+    booyahRatio: matches > 0 ? (booyahs / matches) * 100 : 0,
+    winRate: matches > 0 ? (booyahs / matches) * 100 : 0,
+    lastUpdated: String(input.lastUpdated ?? input.LastUpdated ?? "")
+  } as RawTeam;
+}
+
 async function fetchFromLocalFile(): Promise<RawTeam[] | null> {
   try {
     const filePath = path.join(process.cwd(), "data", "teams.json");
     const contents = await readFile(filePath, "utf8");
     const teams = JSON.parse(contents) as RawTeam[];
-    return Array.isArray(teams) && teams.length ? teams : null;
+    return Array.isArray(teams) && teams.length ? teams.map((t) => normalizeTeam(t as any)) : null;
   } catch {
     return null;
   }
@@ -32,7 +79,11 @@ async function fetchSheetPayload(): Promise<any | null> {
   const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
   if (!webhookUrl) return null;
   try {
-    const response = await fetch(webhookUrl, { method: "GET", cache: "no-store", headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0" } });
+    const response = await fetch(webhookUrl, {
+      method: "GET",
+      cache: "no-store",
+      headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0" }
+    });
     if (!response.ok) throw new Error(`Google Apps Script returned ${response.status}`);
     return await response.json();
   } catch (error) {
@@ -43,16 +94,16 @@ async function fetchSheetPayload(): Promise<any | null> {
 
 async function fetchFromGoogleAppsScript(): Promise<RawTeam[] | null> {
   const payload = await fetchSheetPayload();
-  if (!payload) return null;
+  if (!payload || payload.ok === false) return null;
   const teams = Array.isArray(payload) ? payload : payload?.teams;
-  return Array.isArray(teams) ? teams as RawTeam[] : null;
+  return Array.isArray(teams) ? teams.map((team: Record<string, any>) => normalizeTeam(team)) : null;
 }
 
 export async function getRegisteredTeams(): Promise<RawTeam[]> {
   const teams = (await fetchFromGoogleAppsScript()) || (await fetchFromLocalFile()) || sampleTeams;
   return teams
-    .filter((team) => String(team.registrationStatus || "Registered").toLowerCase() !== "hidden")
-    .map((team) => ({ ...team, slug: (team as any).slug || slugify(team.teamName) }))
+    .filter((team) => String(team.registrationStatus || team.status || "Registered").toLowerCase() !== "hidden")
+    .map((team) => ({ ...normalizeTeam(team as any), slug: (team as any).slug || slugify(team.teamName) }))
     .sort((a, b) => a.teamName.localeCompare(b.teamName));
 }
 
@@ -60,7 +111,18 @@ export async function getTournamentNews(): Promise<TournamentNews[]> {
   const payload = await fetchSheetPayload();
   if (!payload || Array.isArray(payload)) return [];
   const news = Array.isArray(payload.news) ? payload.news : [];
-  return news.filter((item: TournamentNews) => String(item.status || "Published").toLowerCase() !== "hidden");
+  return news
+    .map((item: Record<string, any>) => ({
+      id: String(item.id ?? item.ID ?? ""),
+      title: String(item.title ?? item.Title ?? ""),
+      description: String(item.description ?? item.Description ?? ""),
+      date: String(item.date ?? item.Date ?? ""),
+      type: String(item.type ?? item.Type ?? ""),
+      status: String(item.status ?? item.Status ?? "Published"),
+      imageUrl: String(item.imageUrl ?? item.ImageURL ?? ""),
+      link: String(item.link ?? item.Link ?? "")
+    }))
+    .filter((item: TournamentNews) => String(item.status || "Published").toLowerCase() !== "hidden");
 }
 
 export async function getRankedTeams(): Promise<RankedTeam[]> {
@@ -110,10 +172,52 @@ export async function updateGoogleSheetValues(sheetId: string, range: string, ro
 }
 
 export function teamsToSheetRows(teams: Array<RawTeam | RankedTeam>) {
-  const header = ["Team", "Slug", "Rank", "PreviousRank", "CommunityPoints", "Badge", "Logo URL", "Banner URL", "Kills", "Booyahs", "Championships", "RunnerUp", "SecondRunnerUp", "Top3Finishes", "FinalistFinishes", "OfficialMatchFinalists", "EventsPlayed", "GrandFinals", "WinRate", "KillRatio", "BooyahRatio", "PositionPoints", "TotalPoints", "MatchesPlayed", "Players", "Status", "Description", "LastUpdated"];
+  const header = [
+    "Team","Slug","Rank","PreviousRank","CommunityPoints","Badge","Logo URL","Banner URL",
+    "Kills","Booyahs","Championships","RunnerUp","SecondRunnerUp","Top5Finishes","FinalistFinishes",
+    "OfficialMatchFinalists","EventsPlayed","GrandFinals","WinRate","KillRatio","BooyahRatio",
+    "PositionPoints","TotalPoints","MatchesPlayed","Players","Status","Description","LastUpdated"
+  ];
+
   const rows = teams.map((t) => {
     const ranked = t as RankedTeam;
-    return [t.teamName || "", ranked.slug || "", String(ranked.rank ?? ""), String(ranked.previousRank ?? ""), String(ranked.communityPoints ?? ""), String(ranked.badge ?? ""), t.logoUrl || "", (t as any).bannerUrl || "", String((t as RawTeam).kills ?? 0), String((t as RawTeam).booyahs ?? 0), String((t as RawTeam).championships ?? 0), String((t as RawTeam).runnerUp ?? 0), String((t as RawTeam).secondRunnerUp ?? 0), String((ranked.top3Finishes as number) ?? (t as any).top3Finishes ?? 0), String((t as RawTeam).finalistFinishes ?? 0), String((t as RawTeam).officialMatchFinalists ?? 0), String((t as RawTeam).eventsPlayed ?? 0), String((t as RawTeam).grandFinals ?? 0), String((t as RawTeam).winRate ?? 0), String((t as RawTeam).killRatio ?? 0), String((t as RawTeam).booyahRatio ?? 0), String((t as RawTeam).positionPoints ?? 0), String((t as RawTeam).totalPoints ?? 0), String((t as RawTeam).matchesPlayed ?? 0), String(t.players ?? 5), t.status || "Active", t.description || "", String(ranked.lastUpdated ?? "")];
+    const matches = Math.max(0, asNumber((t as any).matchesPlayed, 0));
+    const kills = Math.max(0, asNumber((t as any).kills, 0));
+    const booyahs = Math.max(0, asNumber((t as any).booyahs, 0));
+    const killRatio = matches > 0 ? kills / matches : 0;
+    const booyahRatio = matches > 0 ? (booyahs / matches) * 100 : 0;
+
+    return [
+      t.teamName || "",
+      ranked.slug || slugify(t.teamName || "team"),
+      String(ranked.rank ?? ""),
+      String(ranked.previousRank ?? ""),
+      String(ranked.communityPoints ?? ""),
+      String(ranked.badge ?? ""),
+      normalizeLogo(t.logoUrl),
+      String((t as any).bannerUrl || ""),
+      String(kills),
+      String(booyahs),
+      String((t as any).championships ?? 0),
+      String((t as any).runnerUp ?? 0),
+      String((t as any).secondRunnerUp ?? 0),
+      String((t as any).top5Finishes ?? 0),
+      String((t as any).finalistFinishes ?? 0),
+      String((t as any).officialMatchFinalists ?? 0),
+      String((t as any).eventsPlayed ?? 0),
+      String((t as any).grandFinals ?? 0),
+      String((t as any).winRate ?? booyahRatio),
+      String(killRatio),
+      String(booyahRatio),
+      String((t as any).positionPoints ?? 0),
+      String((t as any).totalPoints ?? 0),
+      String(matches),
+      String((t as any).players ?? 0),
+      String(t.status || "Active"),
+      String(t.description || ""),
+      String((ranked as any).lastUpdated || (t as any).lastUpdated || "")
+    ];
   });
+
   return [header, ...rows];
 }
