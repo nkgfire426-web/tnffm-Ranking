@@ -19,14 +19,7 @@ export function calculateCommunityPoints(team: RawTeam) {
 }
 
 export function getEventsPlayed(team: RawTeam) {
-  return (
-    Number(team.championships || 0) +
-    Number(team.runnerUp || 0) +
-    Number(team.secondRunnerUp || 0) +
-    Number(team.top5Finishes || 0) +
-    Number(team.finalistFinishes || team.grandFinals || 0) +
-    Number(team.officialMatchFinalists || 0)
-  );
+  return Number(team.eventsPlayed || 0);
 }
 
 function automaticBadge(team: RawTeam) {
@@ -43,16 +36,28 @@ function automaticBadge(team: RawTeam) {
             : "Contender";
 }
 
+/**
+ * Official ranking is deliberately separate from the registered-team directory.
+ * A team is ranked only when rankingEligible is explicitly true. For legacy
+ * data, existing teams with real ranking points remain visible; new registered
+ * teams with zero points stay in the community showcase until an official
+ * collaborator event result is added.
+ */
+export function isRankingEligible(team: RawTeam) {
+  return team.rankingEligible === true || (team.rankingEligible == null && calculateCommunityPoints(team) > 0);
+}
+
 export function rankTeams(teams: RawTeam[]): RankedTeam[] {
-  const ranked = teams
+  const eligibleTeams = teams.filter((team) => isRankingEligible(team) && team.status !== "Banned");
+
+  const ranked = eligibleTeams
     .map((team, index) => ({
       ...team,
-      previousRank: Math.max(1, index + 1 + ((index % 5) - 2)),
+      previousRank: Math.max(1, index + 1),
       communityPoints: calculateCommunityPoints(team),
       eventsPlayed: getEventsPlayed(team),
       top3Finishes: Number(team.championships || 0) + Number(team.runnerUp || 0) + Number(team.secondRunnerUp || 0),
       slug: slugify(team.teamName),
-      // Admin can now set a custom badge. If it is empty, keep the automatic badge.
       badge: String((team as any).badge || "").trim() || automaticBadge(team),
       lastUpdated: new Date().toISOString()
     }))
