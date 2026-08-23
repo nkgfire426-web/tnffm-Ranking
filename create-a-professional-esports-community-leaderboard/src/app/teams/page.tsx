@@ -17,11 +17,10 @@ export default async function CommunityTeamsPage() {
           <p className="text-xs font-bold uppercase tracking-[0.28em] text-gold">TNFFM Tamil Community</p>
           <h1 className="mt-2 font-rajdhani text-4xl font-black uppercase sm:text-6xl">Registered Teams Showcase</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
-            Officially registered Tamil gaming community teams. Registration is separate from the TNFFM competitive ranking. A team can be registered here with 0 ranking points.
+            A public showcase of teams registered with the Tamil gaming community. This page contains team registration and profile information only — no ranking, points, position, or competitive statistics.
           </p>
-          <div className="mt-5 flex flex-wrap gap-3 text-xs font-bold uppercase tracking-wider">
-            <span className="rounded-full border border-gold/30 bg-gold/10 px-3 py-2 text-gold">{teams.length} Registered Teams</span>
-            <Link href="/ranking" className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-slate-200 transition hover:border-gold/40 hover:text-gold">View Official Ranking →</Link>
+          <div className="mt-5">
+            <span className="rounded-full border border-gold/30 bg-gold/10 px-3 py-2 text-xs font-bold uppercase tracking-wider text-gold">{teams.length} Registered Teams</span>
           </div>
         </div>
 
@@ -31,33 +30,17 @@ export default async function CommunityTeamsPage() {
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {teams.map((team) => {
               const slug = slugify(team.teamName);
-              const ranked = team.rankingEligible === true;
-
               return (
-                <Link
-                  key={team.teamName + slug}
-                  href={`/team-details?team=${encodeURIComponent(slug)}`}
-                  className="group rounded-2xl border border-white/10 bg-white/[0.025] p-5 transition hover:-translate-y-1 hover:border-gold/40 hover:bg-gold/[0.04]"
-                >
+                <Link key={team.teamName + slug} href={`/team-details?team=${encodeURIComponent(slug)}`} className="group rounded-2xl border border-white/10 bg-white/[0.025] p-5 transition hover:-translate-y-1 hover:border-gold/40 hover:bg-gold/[0.04]">
                   <div className="flex items-center gap-4">
                     <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-gold/20 bg-black/60 p-2">
-                      {team.logoUrl ? (
-                        <img src={team.logoUrl} alt={`${team.teamName} logo`} className="h-full w-full object-contain" />
-                      ) : (
-                        <span className="font-rajdhani text-2xl font-black text-gold">FF</span>
-                      )}
+                      {team.logoUrl ? <img src={team.logoUrl} alt={`${team.teamName} logo`} className="h-full w-full object-contain" /> : <span className="font-rajdhani text-2xl font-black text-gold">FF</span>}
                     </div>
-                    <div className="min-w-0">
-                      <h2 className="truncate font-rajdhani text-2xl font-bold uppercase text-white group-hover:text-gold">{team.teamName}</h2>
-                      <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500">Tamil Community Team</p>
-                    </div>
+                    <div className="min-w-0"><h2 className="truncate font-rajdhani text-2xl font-bold uppercase text-white group-hover:text-gold">{team.teamName}</h2><p className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-500">Tamil Community Team</p></div>
                   </div>
-
-                  <div className="mt-5 flex items-center justify-between border-t border-white/10 pt-4">
-                    <span className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-wider ${ranked ? "border-gold/30 bg-gold/10 text-gold" : "border-white/10 bg-white/5 text-slate-400"}`}>
-                      {ranked ? "Officially Ranked" : "Registered • Unranked"}
-                    </span>
-                    <span className="text-xs font-bold text-slate-500">{Number(team.players || 0)} Players</span>
+                  <div className="mt-5 border-t border-white/10 pt-4">
+                    <div className="flex items-center justify-between text-xs"><span className="font-bold uppercase tracking-wider text-slate-500">Registered Team</span><span className="font-bold text-slate-400">{Number(team.players || 0)} Players</span></div>
+                    {team.description ? <p className="mt-3 line-clamp-2 text-sm leading-5 text-slate-400">{team.description}</p> : null}
                   </div>
                 </Link>
               );
