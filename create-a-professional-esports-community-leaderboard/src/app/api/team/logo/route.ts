@@ -20,68 +20,90 @@ function getDriveFileId(value: string) {
   return null;
 }
 
-function isGoogleDriveUrl(value: string) {
+function isDrive(value: string) {
   try {
-    const hostname = new URL(value).hostname.toLowerCase();
-    return hostname === "drive.google.com" || hostname.endsWith(".drive.google.com");
+    const host = new URL(value).hostname.toLowerCase();
+    return host === "drive.google.com" || host.endsWith(".drive.google.com");
   } catch {
     return false;
   }
 }
 
-async function fetchImage(url: string) {
+async function requestImage(url: string) {
   return fetch(url, {
     cache: "no-store",
     redirect: "follow",
     headers: {
       Accept: "image/avif,image/webp,image/png,image/jpeg,image/gif,image/*,*/*;q=0.8",
-      "User-Agent": "Mozilla/5.0 (compatible; TNFFM-TeamLogo/1.0)",
+      "User-Agent": "Mozilla/5.0",
     },
   });
 }
 
 export async function GET(request: NextRequest) {
-  const url = request.nextUrl.searchParams.get("url");
-  if (!url) return new NextResponse("Missing image URL", { status: 400 });
+  const source = request.nextUrl.searchParams.get("url");
+
+  if (!source) {
+    return new NextResponse("Missing image URL", { status: 400 });
+  }
 
   try {
     let response: Response | null = null;
 
-    if (isGoogleDriveUrl(url)) {
-      const fileId = getDriveFileId(url);
-      if (!fileId) return new NextResponse("Invalid Google Drive file URL", { status: 400 });
+    if (isDrive(source)) {
+      const fileId = getDriveFileId(source);
 
-      // Try the current Drive download endpoint first, then the older UC endpoint.
-      const driveUrls = [
-        `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=view&confirm=t`,
+      if (!fileId) {
+        return new NextResponse("Could not find the Google Drive file ID", { status: 400 });
+      }
+
+      // Drive's thumbnail endpoint is much more reliable for public image files
+      // than the download endpoint, especially for PNG/JPG team logos.
+      const candidates = [
+        `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w1600`,
         `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileId)}`,
         `https://drive.google.com/uc?export=download&id=${encodeURIComponent(fileId)}`,
+        `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=view&confirm=t`,
       ];
 
-      for (const driveUrl of driveUrls) {
+      for (const candidateUrl of candidates) {
         try {
-          const candidate = await fetchImage(driveUrl);
-          const contentType = candidate.headers.get("content-type") || "";
-          if (candidate.ok && contentType.toLowerCase().startsWith("image/")) {
+          const candidate = await requestImage(candidateUrl);
+          const type = (candidate.headers.get("content-type") || "").toLowerCase();
+
+          if (candidate.ok && type.startsWith("image/")) {
             response = candidate;
             break;
           }
         } catch {
-          // Try the next Drive endpoint.
+          // Continue to the next Drive endpoint.
         }
       }
     } else {
-      const parsed = new URL(url);
-      if (!/^https?:$/.test(parsed.protocol)) throw new Error("Invalid protocol");
-      response = await fetchImage(parsed.toString());
+      const parsed = new URL(source);
+
+      if (!/^https?:$/.test(parsed.protocol)) {
+        throw new Error("Invalid image URL protocol");
+      }
+
+      response = await requestImage(parsed.toString());
     }
 
-    if (!response) return new NextResponse("Unable to load Google Drive image. Make sure the file is shared as Anyone with the link.", { status: 502 });
-    if (!response.ok) return new NextResponse("Unable to load image", { status: 502 });
+    if (!response) {
+      return new NextResponse(
+        "Google Drive logo could not be loaded. Set the file to Anyone with the link → Viewer and use the Drive file sharing URL.",
+        { status: 502 }
+      );
+    }
+
+    if (!response.ok) {
+      return new NextResponse("Unable to load image", { status: 502 });
+    }
 
     const contentType = response.headers.get("content-type") || "";
+
     if (!contentType.toLowerCase().startsWith("image/")) {
-      return new NextResponse("The URL did not return an image", { status: 415 });
+      return new NextResponse("The supplied URL did not return an image", { status: 415 });
     }
 
     return new NextResponse(await response.arrayBuffer(), {
@@ -92,7 +114,10 @@ export async function GET(request: NextRequest) {
         "Access-Control-Allow-Origin": "*",
       },
     });
-  } catch {
-    return new NextResponse("Unable to load image", { status: 400 });
+  } catch (error) {
+    return new NextResponse(
+      error instanceof Error ? error.message : "Unable to load image",
+      { status: 400 }
+    );
   }
 }
