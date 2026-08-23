@@ -1,5 +1,5 @@
 import { sampleTeams } from "./sample-data";
-import { rankTeams } from "./rankings";
+import { rankTeams, slugify } from "./rankings";
 import type { RawTeam, RankedTeam } from "./types";
 import { readFile } from "fs/promises";
 import path from "path";
@@ -47,6 +47,14 @@ async function fetchFromGoogleAppsScript(): Promise<RawTeam[] | null> {
   return Array.isArray(teams) ? teams as RawTeam[] : null;
 }
 
+export async function getRegisteredTeams(): Promise<RawTeam[]> {
+  const teams = (await fetchFromGoogleAppsScript()) || (await fetchFromLocalFile()) || sampleTeams;
+  return teams
+    .filter((team) => String(team.registrationStatus || "Registered").toLowerCase() !== "hidden")
+    .map((team) => ({ ...team, slug: (team as any).slug || slugify(team.teamName) }))
+    .sort((a, b) => a.teamName.localeCompare(b.teamName));
+}
+
 export async function getTournamentNews(): Promise<TournamentNews[]> {
   const payload = await fetchSheetPayload();
   if (!payload || Array.isArray(payload)) return [];
@@ -65,8 +73,8 @@ export async function getRankedTeams(): Promise<RankedTeam[]> {
 }
 
 export async function getTeamBySlug(slug: string) {
-  const teams = await getRankedTeams();
-  return teams.find((team) => team.slug === slug);
+  const teams = await getRegisteredTeams();
+  return teams.find((team) => slugify(team.teamName) === slug || (team as any).slug === slug);
 }
 
 function base64url(input: string | Buffer) {
@@ -94,7 +102,7 @@ async function getServiceAccountAccessToken(serviceAccountJson: string) {
 export async function updateGoogleSheetValues(sheetId: string, range: string, rows: Array<string[]>, serviceAccountJson: string) {
   const token = await getServiceAccountAccessToken(serviceAccountJson);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
-  const resp = await fetch(url, { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ values: rows }) });
+  const resp = await fetch(url, { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json` }, body: JSON.stringify({ values: rows }) });
   if (!resp.ok) throw new Error(`Google Sheets update failed: ${resp.status} ${await resp.text()}`);
   return await resp.json();
 }
