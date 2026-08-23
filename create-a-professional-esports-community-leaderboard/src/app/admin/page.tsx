@@ -1,21 +1,21 @@
 import { Header } from "@/components/Header";
 import { AdminDashboardWithSearch } from "@/components/AdminDashboardWithSearch";
+import { CommunityAdminDashboard } from "@/components/CommunityAdminDashboard";
 import { getTrackedEvents } from "@/lib/events";
-import { getRankedTeams } from "@/lib/google-sheets";
+import { getRegisteredTeams } from "@/lib/google-sheets";
 import { getCollaborators } from "@/lib/collaborators";
 import Link from "next/link";
 
 export const metadata = {
-  title: "Admin Dashboard | TNFFM Community Rankings",
-  description: "Protected team management dashboard for TNFFM Community Rankings."
+  title: "Admin Dashboard | TNFFM Community",
+  description: "Protected TNFFM community administration dashboard."
 };
 
-// This page reads live Google Sheets data and must never be statically generated.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function AdminPage() {
-  const teams = await getRankedTeams();
+  const teams = await getRegisteredTeams();
   const events = await getTrackedEvents();
   const collaborators = await getCollaborators();
 
@@ -27,7 +27,10 @@ export default async function AdminPage() {
           Tournament News & Updates
         </Link>
       </div>
-      <AdminDashboardWithSearch initialTeams={teams} initialEvents={events} initialCollaborators={collaborators} />
+      <div className="hidden">
+        <AdminDashboardWithSearch initialTeams={teams} initialEvents={events} initialCollaborators={collaborators} />
+      </div>
+      <CommunityAdminDashboard initialTeams={teams} initialEvents={events} initialCollaborators={collaborators} />
     </main>
   );
 }
