@@ -7,6 +7,7 @@ import { Award, BarChart3, Share2, Trophy, Users, type LucideIcon } from "lucide
 import type { RawTeam } from "@/lib/types";
 import { formatDateISO } from "@/lib/format-date";
 import { normalizeImageUrl, TeamLogo } from "./TeamLogo";
+import { PlayerLogo } from "./PlayerLogo";
 
 export function TeamProfile({ team }: { team: RawTeam & { slug?: string } }) {
   const rank = typeof (team as any).rank === "number" ? (team as any).rank : 0;
@@ -57,9 +58,13 @@ export function TeamProfile({ team }: { team: RawTeam & { slug?: string } }) {
             <p className="mt-2 text-sm text-slate-400">Registered players and their in-game UIDs.</p>
             <div className="mt-4 grid gap-2">
               {(team.roster || []).map((p, i) => (
-                <div key={i} className="flex items-center justify-between rounded-md bg-black/30 px-4 py-3">
-                  <div><div className="font-semibold text-white">{p.name}</div><div className="text-xs text-slate-400">UID: {p.uid}</div></div>
-                  <div className="text-sm text-slate-500">Player #{i + 1}</div>
+                <div key={i} className="flex items-center gap-3 rounded-md bg-black/30 px-3 py-3">
+                  <PlayerLogo src={p.playerLogoUrl} name={p.name} size={48} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-semibold text-white">{p.name}</div>
+                    <div className="text-xs text-slate-400">UID: {p.uid || "Not provided"}{p.role ? ` • ${p.role}` : ""}</div>
+                  </div>
+                  <div className="shrink-0 text-xs text-slate-500">Player #{i + 1}</div>
                 </div>
               ))}
               {!(team.roster || []).length && <div className="text-sm text-slate-400">No roster available.</div>}
