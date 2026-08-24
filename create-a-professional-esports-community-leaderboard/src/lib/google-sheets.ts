@@ -28,9 +28,9 @@ export async function getRegisteredTeams(): Promise<RawTeam[]> {
     : await fetchFromLocalFile();
   const finalTeams = teamsSource !== null ? teamsSource : sampleTeams;
 
-  const rankings = payload && Array.isArray(payload.rankings) ? payload.rankings : [];
-  const rankingById = new Map(rankings.map((r: any) => [String(r.teamId ?? ""), r]));
-  const rankingByName = new Map(rankings.map((r: any) => [String(r.teamName ?? "").trim().toLowerCase(), r]));
+  const rankings: any[] = payload && Array.isArray(payload.rankings) ? payload.rankings : [];
+  const rankingById = new Map<string, any>(rankings.map((r: any): [string, any] => [String(r.teamId ?? ""), r]));
+  const rankingByName = new Map<string, any>(rankings.map((r: any): [string, any] => [String(r.teamName ?? "").trim().toLowerCase(), r]));
 
   return finalTeams
     .filter((team: any) => String(team.registrationStatus || team.status || "Registered").toLowerCase() !== "hidden")
