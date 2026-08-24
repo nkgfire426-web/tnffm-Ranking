@@ -18,6 +18,8 @@ export type TournamentNews = {
 };
 
 const DEFAULT_LOGO_URL = "";
+const SHEET_TIMEOUT_MS = 10000;
+const SHEET_RETRIES = 3;
 
 function asNumber(value: unknown, fallback = 0) {
   const n = Number(value);
@@ -31,7 +33,10 @@ function normalizeLogo(url: unknown) {
 function normalizeRoster(value: unknown): { name: string; uid: string }[] {
   if (Array.isArray(value)) {
     return value
-      .map((player: any) => ({ name: String(player?.name ?? player?.Name ?? "").trim(), uid: String(player?.uid ?? player?.UID ?? player?.Uid ?? "").trim() }))
+      .map((player: any) => ({
+        name: String(player?.name ?? player?.Name ?? "").trim(),
+        uid: String(player?.uid ?? player?.UID ?? player?.Uid ?? "").trim(),
+      }))
       .filter((player) => player.name || player.uid);
   }
 
@@ -39,10 +44,10 @@ function normalizeRoster(value: unknown): { name: string; uid: string }[] {
   if (!raw) return [];
 
   try {
-    const parsed = JSON.parse(raw);
-    return normalizeRoster(parsed);
+    return normalizeRoster(JSON.parse(raw));
   } catch {
-    return raw.split(/\r?\n|\s*[,;]\s*/)
+    return raw
+      .split(/\r?\n|\s*[,;]\s*/)
       .map((item) => item.trim())
       .filter(Boolean)
       .map((name) => ({ name, uid: "" }));
@@ -84,7 +89,7 @@ function normalizeTeam(input: Record<string, any>): RawTeam {
     killRatio: matches > 0 ? kills / matches : 0,
     booyahRatio: matches > 0 ? (booyahs / matches) * 100 : 0,
     winRate: matches > 0 ? (booyahs / matches) * 100 : 0,
-    lastUpdated: String(input.lastUpdated ?? input.LastUpdated ?? "")
+    lastUpdated: String(input.lastUpdated ?? input.LastUpdated ?? ""),
   } as RawTeam;
 }
 
@@ -93,7 +98,7 @@ async function fetchFromLocalFile(): Promise<RawTeam[] | null> {
     const filePath = path.join(process.cwd(), "data", "teams.json");
     const contents = await readFile(filePath, "utf8");
     const teams = JSON.parse(contents) as RawTeam[];
-    return Array.isArray(teams) && teams.length ? teams.map((t) => normalizeTeam(t as any)) : null;
+    return Array.isArray(teams) ? teams.map((t) => normalizeTeam(t as any)) : null;
   } catch {
     return null;
   }
@@ -105,45 +110,105 @@ async function fetchSheetPayload(): Promise<any | null> {
     console.error("Google Sheets read error: GOOGLE_SHEETS_WEBHOOK_URL is not configured");
     return null;
   }
-  try {
-    const response = await fetch(webhookUrl, { method: "GET", cache: "no-store", headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0" } });
-    if (!response.ok) throw new Error(`Google Apps Script returned ${response.status}`);
-    const payload = await response.json();
-    if (!payload || payload.ok === false) throw new Error(String(payload?.message || "Google Apps Script returned an unsuccessful response"));
-    return payload;
-  } catch (error) {
-    console.error("Google Sheets read error:", error);
-    return null;
+
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= SHEET_RETRIES; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SHEET_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(webhookUrl, {
+        method: "GET",
+        cache: "no-store",
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+          "Cache-Control": "no-cache, no-store, max-age=0",
+          Pragma: "no-cache",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Google Apps Script returned HTTP ${response.status}`);
+      }
+
+      const payload = await response.json();
+
+      // An explicit successful response with an empty teams array is a VALID
+      // dataset (for example after an admin removes the final team). Do not
+      // replace it with sample data or an old local dataset.
+      if (!payload || payload.ok === false) {
+        throw new Error(String(payload?.message || "Google Apps Script returned an unsuccessful response"));
+      }
+
+      return payload;
+    } catch (error) {
+      lastError = error;
+      if (attempt < SHEET_RETRIES) {
+        await new Promise((resolve) => setTimeout(resolve, 350 * attempt));
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
   }
+
+  console.error("Google Sheets read error after retries:", lastError);
+  return null;
 }
 
 async function fetchFromGoogleAppsScript(): Promise<RawTeam[] | null> {
   const payload = await fetchSheetPayload();
   if (!payload) return null;
+
   const teams = Array.isArray(payload) ? payload : payload?.teams;
-  if (!Array.isArray(teams) || teams.length === 0) return null;
+  if (!Array.isArray(teams)) {
+    console.error("Google Sheets read error: response did not contain a teams array");
+    return null;
+  }
+
   return teams.map((team: Record<string, any>) => normalizeTeam(team));
 }
 
 export async function getRegisteredTeams(): Promise<RawTeam[]> {
-  const teams = (await fetchFromGoogleAppsScript()) || (await fetchFromLocalFile()) || sampleTeams;
-  return teams.filter((team) => String(team.registrationStatus || team.status || "Registered").toLowerCase() !== "hidden").map((team) => ({ ...normalizeTeam(team as any), slug: (team as any).slug || slugify(team.teamName) })).sort((a, b) => a.teamName.localeCompare(b.teamName));
+  const teams = await fetchFromGoogleAppsScript();
+  const source = teams !== null ? teams : await fetchFromLocalFile();
+  const finalTeams = source !== null ? source : sampleTeams;
+
+  return finalTeams
+    .filter((team) => String(team.registrationStatus || team.status || "Registered").toLowerCase() !== "hidden")
+    .map((team) => ({ ...normalizeTeam(team as any), slug: (team as any).slug || slugify(team.teamName) }))
+    .sort((a, b) => a.teamName.localeCompare(b.teamName));
 }
 
 export async function getTournamentNews(): Promise<TournamentNews[]> {
   const payload = await fetchSheetPayload();
   if (!payload || Array.isArray(payload)) return [];
   const news = Array.isArray(payload.news) ? payload.news : [];
-  return news.map((item: Record<string, any>) => ({ id: String(item.id ?? item.ID ?? ""), title: String(item.title ?? item.Title ?? ""), description: String(item.description ?? item.Description ?? ""), date: String(item.date ?? item.Date ?? ""), type: String(item.type ?? item.Type ?? ""), status: String(item.status ?? item.Status ?? "Published"), imageUrl: String(item.imageUrl ?? item.ImageURL ?? ""), link: String(item.link ?? item.Link ?? "") })).filter((item: TournamentNews) => String(item.status || "Published").toLowerCase() !== "hidden");
+
+  return news
+    .map((item: Record<string, any>) => ({
+      id: String(item.id ?? item.ID ?? ""),
+      title: String(item.title ?? item.Title ?? ""),
+      description: String(item.description ?? item.Description ?? ""),
+      date: String(item.date ?? item.Date ?? ""),
+      type: String(item.type ?? item.Type ?? ""),
+      status: String(item.status ?? item.Status ?? "Published"),
+      imageUrl: String(item.imageUrl ?? item.ImageURL ?? ""),
+      link: String(item.link ?? item.Link ?? ""),
+    }))
+    .filter((item: TournamentNews) => String(item.status || "Published").toLowerCase() !== "hidden");
 }
 
 export async function getRankedTeams(): Promise<RankedTeam[]> {
   try {
-    const teams = (await fetchFromGoogleAppsScript()) || (await fetchFromLocalFile()) || sampleTeams;
+    const teams = await fetchFromGoogleAppsScript();
+    const source = teams !== null ? teams : await fetchFromLocalFile();
+    const finalTeams = source !== null ? source : sampleTeams;
     const events = await getTrackedEvents();
-    return rankTeams(teams.length ? teams : sampleTeams, events);
+    return rankTeams(finalTeams, events);
   } catch (error) {
-    console.error(error);
+    console.error("Ranking data error:", error);
     return rankTeams((await fetchFromLocalFile()) || sampleTeams);
   }
 }
@@ -153,15 +218,83 @@ export async function getTeamBySlug(slug: string) {
   return teams.find((team) => slugify(team.teamName) === slug || (team as any).slug === slug);
 }
 
-function base64url(input: string | Buffer) { return Buffer.from(input).toString("base64").replace(/=+$/g, "").replace(/\+/g, "-").replace(/\//g, "_"); }
-async function getServiceAccountAccessToken(serviceAccountJson: string) {
-  const sa = JSON.parse(serviceAccountJson); const iat = Math.floor(Date.now() / 1000); const exp = iat + 3600; const header = { alg: "RS256", typ: "JWT" }; const claim = { iss: sa.client_email, scope: "https://www.googleapis.com/auth/spreadsheets", aud: "https://oauth2.googleapis.com/token", exp, iat }; const unsigned = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(claim))}`; const sign = crypto.createSign("RSA-SHA256"); const key = sa.private_key.replace(/\\n/g, "\n"); sign.update(unsigned); const signature = sign.sign(key); const jwt = `${unsigned}.${base64url(signature)}`; const resp = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${encodeURIComponent(jwt)}` }); if (!resp.ok) throw new Error(`Service account token request failed: ${resp.status}`); const payload = await resp.json(); return payload.access_token as string;
+function base64url(input: string | Buffer) {
+  return Buffer.from(input).toString("base64").replace(/=+$/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 
-export async function updateGoogleSheetValues(sheetId: string, range: string, rows: Array<string[]>, serviceAccountJson: string) { const token = await getServiceAccountAccessToken(serviceAccountJson); const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`; const resp = await fetch(url, { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ values: rows }) }); if (!resp.ok) throw new Error(`Google Sheets update failed: ${resp.status} ${await resp.text()}`); return await resp.json(); }
+async function getServiceAccountAccessToken(serviceAccountJson: string) {
+  const sa = JSON.parse(serviceAccountJson);
+  const iat = Math.floor(Date.now() / 1000);
+  const exp = iat + 3600;
+  const header = { alg: "RS256", typ: "JWT" };
+  const claim = { iss: sa.client_email, scope: "https://www.googleapis.com/auth/spreadsheets", aud: "https://oauth2.googleapis.com/token", exp, iat };
+  const unsigned = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(claim))}`;
+  const sign = crypto.createSign("RSA-SHA256");
+  const key = sa.private_key.replace(/\\n/g, "\n");
+  sign.update(unsigned);
+  const signature = sign.sign(key);
+  const jwt = `${unsigned}.${base64url(signature)}`;
+  const resp = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${encodeURIComponent(jwt)}`,
+  });
+  if (!resp.ok) throw new Error(`Service account token request failed: ${resp.status}`);
+  const payload = await resp.json();
+  return payload.access_token as string;
+}
+
+export async function updateGoogleSheetValues(sheetId: string, range: string, rows: Array<string[]>, serviceAccountJson: string) {
+  const token = await getServiceAccountAccessToken(serviceAccountJson);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
+  const resp = await fetch(url, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ values: rows }),
+  });
+  if (!resp.ok) throw new Error(`Google Sheets update failed: ${resp.status} ${await resp.text()}`);
+  return await resp.json();
+}
 
 export function teamsToSheetRows(teams: Array<RawTeam | RankedTeam>) {
-  const header = ["Team","Slug","Rank","PreviousRank","CommunityPoints","Badge","Logo URL","Banner URL","Kills","Booyahs","Championships","RunnerUp","SecondRunnerUp","Top5Finishes","FinalistFinishes","OfficialMatchFinalists","EventsPlayed","GrandFinals","WinRate","KillRatio","BooyahRatio","PositionPoints","TotalPoints","MatchesPlayed","Players","Status","Description","LastUpdated"];
-  const rows = teams.map((t) => { const ranked = t as RankedTeam; const matches = Math.max(0, asNumber((t as any).matchesPlayed, 0)); const kills = Math.max(0, asNumber((t as any).kills, 0)); const booyahs = Math.max(0, asNumber((t as any).booyahs, 0)); const killRatio = matches > 0 ? kills / matches : 0; const booyahRatio = matches > 0 ? (booyahs / matches) * 100 : 0; return [t.teamName || "", ranked.slug || slugify(t.teamName || "team"), String(ranked.rank ?? ""), String(ranked.previousRank ?? ""), String(ranked.communityPoints ?? ""), String(ranked.badge ?? ""), normalizeLogo(t.logoUrl), String((t as any).bannerUrl || ""), String(kills), String(booyahs), String((t as any).championships ?? 0), String((t as any).runnerUp ?? 0), String((t as any).secondRunnerUp ?? 0), String((t as any).top5Finishes ?? 0), String((t as any).finalistFinishes ?? 0), String((t as any).officialMatchFinalists ?? 0), String((t as any).eventsPlayed ?? 0), String((t as any).grandFinals ?? 0), String((t as any).winRate ?? booyahRatio), String(killRatio), String(booyahRatio), String((t as any).positionPoints ?? 0), String((t as any).totalPoints ?? 0), String(matches), String((t as any).players ?? 0), String(t.status || "Active"), String(t.description || ""), String((ranked as any).lastUpdated || (t as any).lastUpdated || "")]; });
+  const header = ["Team", "Slug", "Rank", "PreviousRank", "CommunityPoints", "Badge", "Logo URL", "Banner URL", "Kills", "Booyahs", "Championships", "RunnerUp", "SecondRunnerUp", "Top5Finishes", "FinalistFinishes", "OfficialMatchFinalists", "EventsPlayed", "GrandFinals", "WinRate", "KillRatio", "BooyahRatio", "PositionPoints", "TotalPoints", "MatchesPlayed", "Players", "Status", "Description", "LastUpdated"];
+  const rows = teams.map((t) => {
+    const ranked = t as RankedTeam;
+    const matches = Math.max(0, asNumber((t as any).matchesPlayed, 0));
+    const kills = Math.max(0, asNumber((t as any).kills, 0));
+    const booyahs = Math.max(0, asNumber((t as any).booyahs, 0));
+    const killRatio = matches > 0 ? kills / matches : 0;
+    const booyahRatio = matches > 0 ? (booyahs / matches) * 100 : 0;
+    return [
+      t.teamName || "",
+      ranked.slug || slugify(t.teamName || "team"),
+      String(ranked.rank ?? ""),
+      String(ranked.previousRank ?? ""),
+      String(ranked.communityPoints ?? ""),
+      String(ranked.badge ?? ""),
+      normalizeLogo(t.logoUrl),
+      String((t as any).bannerUrl || ""),
+      String(kills),
+      String(booyahs),
+      String((t as any).championships ?? 0),
+      String((t as any).runnerUp ?? 0),
+      String((t as any).secondRunnerUp ?? 0),
+      String((t as any).top5Finishes ?? 0),
+      String((t as any).finalistFinishes ?? 0),
+      String((t as any).officialMatchFinalists ?? 0),
+      String((t as any).eventsPlayed ?? 0),
+      String((t as any).grandFinals ?? 0),
+      String((t as any).winRate ?? booyahRatio),
+      String(killRatio),
+      String(booyahRatio),
+      String((t as any).positionPoints ?? 0),
+      String((t as any).totalPoints ?? 0),
+      String(matches),
+      String((t as any).players ?? 0),
+      String(t.status || "Active"),
+      String(t.description || ""),
+      String((ranked as any).lastUpdated || (t as any).lastUpdated || ""),
+    ];
+  });
   return [header, ...rows];
 }
