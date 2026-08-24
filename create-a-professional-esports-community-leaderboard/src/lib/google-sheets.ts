@@ -21,7 +21,44 @@ function normalizeTeam(input: Record<string, any>): RawTeam { const teamName = S
 async function fetchFromLocalFile(): Promise<RawTeam[] | null> { try { const contents = await readFile(path.join(process.cwd(), "data", "teams.json"), "utf8"); const teams = JSON.parse(contents) as RawTeam[]; return Array.isArray(teams) ? teams.map((t) => normalizeTeam(t as any)) : null; } catch { return null; } }
 async function fetchSheetPayload(): Promise<any | null> { const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL; if (!webhookUrl) { console.error("Google Sheets read error: GOOGLE_SHEETS_WEBHOOK_URL is not configured"); return null; } let lastError: unknown = null; for (let attempt = 1; attempt <= SHEET_RETRIES; attempt += 1) { const controller = new AbortController(); const timeout = setTimeout(() => controller.abort(), SHEET_TIMEOUT_MS); try { const response = await fetch(webhookUrl, { method: "GET", cache: "no-store", signal: controller.signal, headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0", Pragma: "no-cache" } }); if (!response.ok) throw new Error(`Google Apps Script returned HTTP ${response.status}`); const payload = await response.json(); if (!payload || payload.ok === false) throw new Error(String(payload?.message || "Google Apps Script returned an unsuccessful response")); return payload; } catch (error) { lastError = error; if (attempt < SHEET_RETRIES) await new Promise((resolve) => setTimeout(resolve, 350 * attempt)); } finally { clearTimeout(timeout); } } console.error("Google Sheets read error after retries:", lastError); return null; }
 async function fetchFromGoogleAppsScript(): Promise<RawTeam[] | null> { const payload = await fetchSheetPayload(); if (!payload) return null; const teams = Array.isArray(payload) ? payload : payload?.teams; if (!Array.isArray(teams)) { console.error("Google Sheets read error: response did not contain a teams array"); return null; } return teams.map((team: Record<string, any>) => normalizeTeam(team)); }
-export async function getRegisteredTeams(): Promise<RawTeam[]> { const teams = await fetchFromGoogleAppsScript(); const source = teams !== null ? teams : await fetchFromLocalFile(); const finalTeams = source !== null ? source : sampleTeams; return finalTeams.filter((team) => String(team.registrationStatus || team.status || "Registered").toLowerCase() !== "hidden").map((team) => ({ ...normalizeTeam(team as any), slug: (team as any).slug || slugify(team.teamName) })).sort((a, b) => a.teamName.localeCompare(b.teamName)); }
+export async function getRegisteredTeams(): Promise<RawTeam[]> {
+  const payload = await fetchSheetPayload();
+  const teamsSource = payload && Array.isArray(payload.teams)
+    ? payload.teams
+    : await fetchFromLocalFile();
+  const finalTeams = teamsSource !== null ? teamsSource : sampleTeams;
+
+  const rankings = payload && Array.isArray(payload.rankings) ? payload.rankings : [];
+  const rankingById = new Map(rankings.map((r: any) => [String(r.teamId ?? ""), r]));
+  const rankingByName = new Map(rankings.map((r: any) => [String(r.teamName ?? "").trim().toLowerCase(), r]));
+
+  return finalTeams
+    .filter((team) => String(team.registrationStatus || team.status || "Registered").toLowerCase() !== "hidden")
+    .map((team) => {
+      const normalized: any = normalizeTeam(team as any);
+      const ranking = rankingById.get(String((team as any).teamId ?? "")) ||
+        rankingByName.get(normalized.teamName.trim().toLowerCase());
+
+      if (ranking) {
+        normalized.rank = asNumber(ranking.rank, 0);
+        normalized.communityPoints = asNumber(ranking.communityScore ?? ranking.communityPoints, 0);
+        normalized.eventsPlayed = asNumber(ranking.eventsPlayed, normalized.eventsPlayed);
+        normalized.championships = asNumber(ranking.championships, normalized.championships);
+        normalized.runnerUp = asNumber(ranking.runnerUp, normalized.runnerUp);
+        normalized.secondRunnerUp = asNumber(ranking.secondRunnerUp, normalized.secondRunnerUp);
+        normalized.top5Finishes = asNumber(ranking.top5Finishes, normalized.top5Finishes);
+        normalized.positionPoints = asNumber(ranking.positionPoints, normalized.positionPoints);
+        normalized.totalPoints = asNumber(ranking.totalPoints, normalized.totalPoints);
+        normalized.rankingEligible = String(ranking.eligible ?? "Yes").toLowerCase() !== "no";
+      }
+
+      return {
+        ...normalized,
+        slug: (team as any).slug || normalized.slug || slugify(normalized.teamName)
+      };
+    })
+    .sort((a, b) => a.teamName.localeCompare(b.teamName));
+}
 export async function getTournamentNews(): Promise<TournamentNews[]> { const payload = await fetchSheetPayload(); if (!payload || Array.isArray(payload)) return []; const news = Array.isArray(payload.news) ? payload.news : []; return news.map((item: Record<string, any>) => ({ id: String(item.id ?? item.ID ?? ""), title: String(item.title ?? item.Title ?? ""), description: String(item.description ?? item.Description ?? ""), date: String(item.date ?? item.Date ?? ""), type: String(item.type ?? item.Type ?? ""), status: String(item.status ?? item.Status ?? "Published"), imageUrl: String(item.imageUrl ?? item.ImageURL ?? ""), link: String(item.link ?? item.Link ?? "") })).filter((item: TournamentNews) => String(item.status || "Published").toLowerCase() !== "hidden"); }
 export async function getRankedTeams(): Promise<RankedTeam[]> {
   try {
