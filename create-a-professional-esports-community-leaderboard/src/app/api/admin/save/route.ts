@@ -108,7 +108,7 @@ function normalizeResults(value: unknown): unknown[] {
   }
   if (!Array.isArray(parsed)) return [];
   return parsed.map((r: any) => ({
-    resultId: String(r?.resultId ?? r?.id ?? "").trim(),
+    resultId: (() => { const id = String(r?.resultId ?? r?.id ?? "").trim(); return /^RES-\d{6}$/i.test(id) ? "" : id; })(),
     teamId: String(r?.teamId ?? "").trim(),
     teamName: String(r?.teamName ?? r?.team ?? "").trim(),
     position: num(r?.position ?? r?.rank),
@@ -124,7 +124,7 @@ function normalizeResults(value: unknown): unknown[] {
 function comparableEvent(event: unknown): string {
   const e = { ...(event as Record<string, unknown>) };
   return JSON.stringify({
-    eventId: String(e.eventId ?? e.id ?? "").trim(),
+    eventId: (() => { const id = String(e.eventId ?? e.id ?? "").trim(); return /^EV-\d{5}$/i.test(id) ? "" : id; })(),
     name: String(e.name ?? e.eventName ?? "").trim(),
     organizer: String(e.organizer ?? "").trim(),
     teams: num(e.teams ?? e.teamCount),
