@@ -1,0 +1,150 @@
+name: TNFFM hardening patch
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    if: ${{ !contains(github.event.head_commit.message, 'TNFFM automated hardening') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Patch TNFFM admin, Sheets deletion and mobile UX
+        shell: python
+        run: |
+          from pathlib import Path
+
+          root = Path('create-a-professional-esports-community-leaderboard')
+
+          # Google Apps Script: allow the admin to permanently remove both the
+          # Teams row and the matching TeamAccounts row, under a script lock.
+          gs = root / 'google-apps-script' / 'Code.gs'
+          text = gs.read_text()
+          marker = '      case "resetteampassword": return resetTeamPassword_(ss, body);\n'
+          insert = marker + '      case "deleteteam": return deleteTeam_(ss, body);\n'
+          if 'case "deleteteam"' not in text:
+              if marker not in text:
+                  raise SystemExit('Could not find Apps Script action switch marker')
+              text = text.replace(marker, insert, 1)
+
+          fn_marker = 'function writeTeams_(ss, teams) {'
+          fn = r'''function deleteTeam_(ss, body) {
+  const slug = clean_(body && body.teamSlug);
+  if (!slug) return json_({ok:false,message:"Team slug is required."});
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const teamsSheet = getOrCreateSheet_(ss, "Teams");
+    ensureHeaders_(teamsSheet, TEAM_HEADERS);
+    const teamRows = teamsSheet.getLastRow() < 2
+      ? []
+      : teamsSheet.getRange(2, 1, teamsSheet.getLastRow() - 1, TEAM_HEADERS.length).getValues();
+    const remainingTeams = teamRows.filter(row => clean_(row[1]).toLowerCase() !== slug.toLowerCase());
+    if (remainingTeams.length !== teamRows.length) {
+      teamsSheet.getRange(2, 1, Math.max(1, teamsSheet.getLastRow() - 1), TEAM_HEADERS.length).clearContent();
+      if (remainingTeams.length) teamsSheet.getRange(2, 1, remainingTeams.length, TEAM_HEADERS.length).setValues(remainingTeams);
+    }
+
+    const accountSheet = getOrCreateSheet_(ss, "TeamAccounts");
+    ensureHeaders_(accountSheet, ACCOUNT_HEADERS);
+    const accountLastRow = accountSheet.getLastRow();
+    if (accountLastRow >= 2) {
+      const accountRows = accountSheet.getRange(2, 1, accountLastRow - 1, ACCOUNT_HEADERS.length).getValues();
+      const remainingAccounts = accountRows.filter(row => clean_(row[2]).toLowerCase() !== slug.toLowerCase());
+      accountSheet.getRange(2, 1, accountLastRow - 1, ACCOUNT_HEADERS.length).clearContent();
+      if (remainingAccounts.length) accountSheet.getRange(2, 1, remainingAccounts.length, ACCOUNT_HEADERS.length).setValues(remainingAccounts);
+    }
+
+    SpreadsheetApp.flush();
+    return json_({ok:true,message:"Team and registered account removed successfully.",teamSlug:slug});
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+'''
+          if 'function deleteTeam_(ss, body)' not in text:
+              if fn_marker not in text:
+                  raise SystemExit('Could not find writeTeams_ marker')
+              text = text.replace(fn_marker, fn + fn_marker, 1)
+          gs.write_text(text)
+
+          # Admin dashboard: add a real delete action for registered teams.
+          dash = root / 'src' / 'components' / 'CommunityAdminDashboard.tsx'
+          text = dash.read_text()
+          old = '''  function addTeam() { setTeams((current) => [...current, blankTeam()]); setTab("teams"); }\n'''
+          new = '''  function addTeam() { setTeams((current) => [...current, blankTeam()]); setTab("teams"); }\n  async function removeTeam(index: number) {\n    const team = teams[index];\n    if (!team) return;\n    if (!window.confirm(`Remove ${team.teamName || "this team"} permanently? This also removes its registered team account.`)) return;\n    if (!(team as any).slug) {\n      setTeams((current) => current.filter((_, i) => i !== index));\n      setStatus("Unsaved team removed.");\n      return;\n    }\n    setSaving(true);\n    setStatus(`Removing ${team.teamName}...`);\n    try {\n      const response = await fetch("/api/admin/delete-team", {\n        method: "POST",\n        headers: { "Content-Type": "application/json" },\n        body: JSON.stringify({ password, teamSlug: (team as any).slug })\n      });\n      const result = await response.json().catch(() => ({}));\n      if (!response.ok || result.ok === false) throw new Error(result.message || "Team removal failed.");\n      setTeams((current) => current.filter((_, i) => i !== index));\n      setStatus(`✓ ${team.teamName} was removed from Teams and TeamAccounts.`);\n    } catch (error) {\n      setStatus(error instanceof Error ? error.message : "Team removal failed.");\n    } finally {\n      setSaving(false);\n    }\n  }\n'''
+          if 'async function removeTeam(index: number)' not in text:
+              if old not in text:
+                  raise SystemExit('Could not find addTeam marker')
+              text = text.replace(old, new, 1)
+
+          old_button = '''<div className="shrink-0"><button onClick={() => setRosterIndex(index)} className="rounded-lg border border-gold/30 px-3 py-2 text-sm font-bold text-gold">Roster</button></div>'''
+          new_button = '''<div className="flex shrink-0 flex-wrap gap-2"><button onClick={() => setRosterIndex(index)} className="rounded-lg border border-gold/30 px-3 py-2 text-sm font-bold text-gold">Roster</button><button disabled={saving} onClick={() => void removeTeam(index)} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm font-bold text-red-300 disabled:opacity-50"><Trash2 className="h-4 w-4" />Remove</button></div>'''
+          if 'onClick={() => void removeTeam(index)}' not in text:
+              if old_button not in text:
+                  raise SystemExit('Could not find team roster button marker')
+              text = text.replace(old_button, new_button, 1)
+          dash.write_text(text)
+
+          # Make image handling defensive without ever writing a fallback URL
+          # back into a team's stored logo field. The fallback is display-only.
+          logo = root / 'src' / 'components' / 'TeamLogo.tsx'
+          text = logo.read_text()
+          old = '''  if (!value) return DEFAULT_LOGO;\n\n  // Google Drive images are served through the same-origin proxy'''
+          new = '''  if (!value || /^(undefined|null|nan|false)$/i.test(value)) return DEFAULT_LOGO;\n\n  // Google Drive images are served through the same-origin proxy'''
+          if old in text:
+              text = text.replace(old, new, 1)
+          logo.write_text(text)
+
+          # Small-screen polish for every page. Keep tables scrollable, reduce
+          # oversized admin controls, and prevent mobile browser input zoom.
+          css = root / 'src' / 'app' / 'globals.css'
+          text = css.read_text()
+          addition = r'''
+
+/* TNFFM mobile hardening */
+@media (max-width: 640px) {
+  body { font-size: 14px; }
+  input, select, textarea { font-size: 16px !important; }
+  main section { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+  h1 { font-size: clamp(1.65rem, 8vw, 2.25rem); line-height: 1.05; }
+  h2 { font-size: clamp(1.35rem, 6vw, 1.8rem); }
+  .glass { border-radius: 0.75rem; }
+  table { font-size: 0.75rem; }
+  button { max-width: 100%; }
+  [class*="flex-wrap"] { row-gap: 0.5rem; }
+}
+@media (max-width: 420px) {
+  main section { padding-top: 1rem !important; padding-bottom: 1rem !important; }
+  .glass { padding: 0.75rem !important; }
+  button { min-height: 40px; }
+}
+'''
+          if '/* TNFFM mobile hardening */' not in text:
+              text += addition
+          css.write_text(text)
+
+      - name: Commit hardening changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add create-a-professional-esports-community-leaderboard/google-apps-script/Code.gs \
+            create-a-professional-esports-community-leaderboard/src/components/CommunityAdminDashboard.tsx \
+            create-a-professional-esports-community-leaderboard/src/components/TeamLogo.tsx \
+            create-a-professional-esports-community-leaderboard/src/app/globals.css
+          if git diff --cached --quiet; then
+            echo "No hardening changes needed."
+            exit 0
+          fi
+          git commit -m "TNFFM automated hardening: team deletion, logo safety and mobile UX"
+          git push
