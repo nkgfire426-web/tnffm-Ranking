@@ -109,7 +109,7 @@ async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
   try {
     const response = await fetch(rawUrl, {
       method: "GET",
-      next: { revalidate: 15 },
+      next: { revalidate: 15, tags: ["tnffm-sheet"] },
       headers: { Accept: "application/json" },
       signal: controller.signal
     });
