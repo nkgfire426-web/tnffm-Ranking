@@ -244,7 +244,7 @@ export async function POST(request: NextRequest) {
     await verifyGoogleSheetsSave(webhookUrl, data, hasTeams, hasEvents, hasCollaborators, hasNews, Array.isArray(data.rankings));
     // Invalidate the shared Google Sheets Data Cache immediately so the public
     // homepage/ranking pages never remain on the pre-save snapshot.
-    revalidateTag("tnffm-sheet", "max");
+    revalidateTag("tnffm-sheet");
     revalidatePath("/");
     revalidatePath("/ranking");
     revalidatePath("/teams");
