@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { Trophy } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type TeamLogoProps = {
   src?: string | null;
@@ -11,56 +11,49 @@ type TeamLogoProps = {
   champion?: boolean;
 };
 
-// Keep this as the ONLY display fallback. A broken custom URL must never be
-// written back to Google Sheets or replace the team's stored URL.
 const DEFAULT_LOGO = "/tnffm-default-logo.svg";
 
 function cleanImageValue(src?: string | null) {
   let value = String(src ?? "").trim();
-
-  // Support Google Sheets IMAGE("url") values if one is returned by the API.
   const imageFormula = value.match(/^=IMAGE\(\s*["']([^"']+)["']/i);
   if (imageFormula?.[1]) value = imageFormula[1].trim();
-
-  value = value.replace(/^['"]|['"]$/g, "").trim();
-  return value;
+  return value.replace(/^['"]|['"]$/g, "").trim();
 }
 
 export function normalizeImageUrl(src?: string | null) {
   const value = cleanImageValue(src);
+  if (!value || /^(undefined|null|nan|false)$/i.test(value)) return DEFAULT_LOGO;
 
-  if (!value || /^(undefined|null|nan|false)$/i.test(value)) {
-    return DEFAULT_LOGO;
-  }
-
-  // Google Drive logos are served through the existing same-origin proxy.
   if (/drive\.google\.com|drive\.usercontent\.google\.com/i.test(value)) {
     return `/api/team/logo?url=${encodeURIComponent(value)}`;
   }
 
   try {
     const parsed = new URL(value);
-    if (!/^https?:$/.test(parsed.protocol)) return DEFAULT_LOGO;
-    return parsed.toString();
+    return /^https?:$/.test(parsed.protocol) ? parsed.toString() : DEFAULT_LOGO;
   } catch {
     return DEFAULT_LOGO;
   }
 }
 
-export function TeamLogo({
-  src,
-  name,
-  size = 48,
-  champion = false,
-}: TeamLogoProps) {
+export function TeamLogo({ src, name, size = 48, champion = false }: TeamLogoProps) {
   const candidate = normalizeImageUrl(src);
   const [imageSrc, setImageSrc] = useState(candidate);
+  const [failed, setFailed] = useState(candidate === DEFAULT_LOGO);
 
-  // React keeps the actual candidate URL stable until the input changes.
-  // There is intentionally NO background Image() probe here: that used to
-  // download every logo twice and could make the fallback appear first.
+  // If a team prop changes without the component being remounted, reset the
+  // display state to the new candidate. The fallback is display-only and never
+  // mutates the stored Google Sheets value.
+  useEffect(() => {
+    setImageSrc(candidate);
+    setFailed(candidate === DEFAULT_LOGO);
+  }, [candidate]);
+
   const handleError = () => {
-    setImageSrc((current) => (current === DEFAULT_LOGO ? current : DEFAULT_LOGO));
+    if (imageSrc !== DEFAULT_LOGO) {
+      setImageSrc(DEFAULT_LOGO);
+    }
+    setFailed(true);
   };
 
   return (
@@ -72,17 +65,33 @@ export function TeamLogo({
         <Trophy className="absolute -right-2 -top-2 z-10 h-5 w-5 rounded-full bg-gold p-1 text-black shadow-glow" />
       )}
 
+      {/* Render the fallback as a real local image underneath. If a remote
+          image fails, the failed element is removed instead of leaving the
+          browser's broken-image icon visible. */}
       <img
-        src={imageSrc}
-        alt={`${name || "Team"} logo`}
+        src={DEFAULT_LOGO}
+        alt=""
+        aria-hidden="true"
         width={Math.max(1, size - 8)}
         height={Math.max(1, size - 8)}
-        className="h-full w-full rounded-md object-contain"
-        referrerPolicy="no-referrer"
-        decoding="async"
-        loading="lazy"
-        onError={handleError}
+        className="absolute inset-1 h-[calc(100%-0.5rem)] w-[calc(100%-0.5rem)] rounded-md object-contain"
+        draggable={false}
       />
+
+      {!failed && (
+        <img
+          src={imageSrc}
+          alt={`${name || "Team"} logo`}
+          width={Math.max(1, size - 8)}
+          height={Math.max(1, size - 8)}
+          className="relative z-[1] h-[calc(100%-0.5rem)] w-[calc(100%-0.5rem)] rounded-md object-contain"
+          referrerPolicy="no-referrer"
+          decoding="async"
+          loading="lazy"
+          draggable={false}
+          onError={handleError}
+        />
+      )}
     </div>
   );
 }
