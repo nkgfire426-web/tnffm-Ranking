@@ -65,13 +65,13 @@ export async function getRankedTeams(): Promise<RankedTeam[]> {
     const payload = await fetchSheetPayload();
     if (payload && Array.isArray(payload.rankings)) {
       const teamsRaw = Array.isArray(payload.teams) ? payload.teams : [];
-      const byId = new Map(teamsRaw.map((team: any) => [String(team.teamId ?? team.id ?? ""), team]));
-      const byName = new Map(teamsRaw.map((team: any) => [String(team.teamName ?? team.team ?? "").trim().toLowerCase(), team]));
+      const byId = new Map<string, any>(teamsRaw.map((team: any): [string, any] => [String(team.teamId ?? team.id ?? ""), team]));
+      const byName = new Map<string, any>(teamsRaw.map((team: any): [string, any] => [String(team.teamName ?? team.team ?? "").trim().toLowerCase(), team]));
 
       const ranked = payload.rankings
         .filter((r: any) => String(r?.status ?? "Active").toLowerCase() !== "hidden")
         .map((r: any) => {
-          const base = byId.get(String(r.teamId ?? "")) || byName.get(String(r.teamName ?? "").trim().toLowerCase()) || {};
+          const base: any = byId.get(String(r.teamId ?? "")) || byName.get(String(r.teamName ?? "").trim().toLowerCase()) || {};
           const matches = asNumber(r.matchesPlayed ?? base.matchesPlayed, 0);
           const kills = asNumber(r.kills ?? base.kills, 0);
           const booyahs = asNumber(r.booyahs ?? base.booyahs, 0);
