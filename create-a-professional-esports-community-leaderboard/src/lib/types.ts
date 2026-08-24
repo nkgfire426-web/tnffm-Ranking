@@ -24,7 +24,7 @@ export type RawTeam = {
   description?: string;
   bannerUrl?: string;
   players?: number;
-  roster?: { name: string; uid: string }[];
+  roster?: { name: string; uid: string; role?: string; playerLogoUrl?: string }[];
   mobileNumber?: string;
 };
 
