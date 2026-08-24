@@ -24,7 +24,7 @@
  */
 
 const VERSION = 'TNFFM-2026.08.24-3';
-const DEFAULT_LOGO_URL = 'https://i.imgur.com/6YQfM6M.png';
+const DEFAULT_LOGO_URL = '/tnffm-default-logo.svg';
 const DEFAULT_PLAYER_LOGO_URL = '/tnffm-default-player.svg';
 
 const TABS = {
