@@ -1,5 +1,6 @@
 import { Header } from "@/components/Header";
 import { CommunityAdminDashboard } from "@/components/CommunityAdminDashboard";
+import { AdminTeamRemoval } from "@/components/AdminTeamRemoval";
 import { getTrackedEvents } from "@/lib/events";
 import { getRegisteredTeams } from "@/lib/google-sheets";
 import { getCollaborators } from "@/lib/collaborators";
@@ -21,10 +22,11 @@ export default async function AdminPage() {
   return (
     <main>
       <Header />
-      <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
-        <Link href="/admin/news" className="inline-flex items-center rounded-lg border border-gold/30 bg-black/30 px-4 py-3 text-sm font-bold text-gold transition hover:bg-gold hover:text-black">
+      <div className="mx-auto max-w-7xl px-4 pt-4 sm:px-6 lg:px-8">
+        <Link href="/admin/news" className="inline-flex min-h-10 items-center rounded-lg border border-gold/30 bg-black/30 px-3 py-2 text-xs font-bold text-gold transition hover:bg-gold hover:text-black sm:px-4 sm:py-3 sm:text-sm">
           Tournament News & Updates
         </Link>
+        <AdminTeamRemoval initialTeams={teams} />
       </div>
       <CommunityAdminDashboard initialTeams={teams} initialEvents={events} initialCollaborators={collaborators} />
     </main>
