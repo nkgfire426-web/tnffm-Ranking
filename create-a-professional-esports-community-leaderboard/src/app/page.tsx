@@ -9,8 +9,7 @@ import { TrackedEventsPreview } from "@/components/TrackedEventsPreview";
 import { getTrackedEvents } from "@/lib/events";
 import { getRankedTeams, getTournamentNews } from "@/lib/google-sheets";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export const revalidate = 15;
 
 export default async function Home() {
   const [teams, news, events] = await Promise.all([
