@@ -57,7 +57,7 @@ export async function getRegisteredTeams(): Promise<RawTeam[]> {
         slug: (team as any).slug || normalized.slug || slugify(normalized.teamName)
       };
     })
-    .sort((a, b) => a.teamName.localeCompare(b.teamName));
+    .sort((a: RawTeam, b: RawTeam) => a.teamName.localeCompare(b.teamName));
 }
 export async function getTournamentNews(): Promise<TournamentNews[]> { const payload = await fetchSheetPayload(); if (!payload || Array.isArray(payload)) return []; const news = Array.isArray(payload.news) ? payload.news : []; return news.map((item: Record<string, any>) => ({ id: String(item.id ?? item.ID ?? ""), title: String(item.title ?? item.Title ?? ""), description: String(item.description ?? item.Description ?? ""), date: String(item.date ?? item.Date ?? ""), type: String(item.type ?? item.Type ?? ""), status: String(item.status ?? item.Status ?? "Published"), imageUrl: String(item.imageUrl ?? item.ImageURL ?? ""), link: String(item.link ?? item.Link ?? "") })).filter((item: TournamentNews) => String(item.status || "Published").toLowerCase() !== "hidden"); }
 export async function getRankedTeams(): Promise<RankedTeam[]> {
