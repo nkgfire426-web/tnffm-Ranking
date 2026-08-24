@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type React from "react";
 import { Inter, Rajdhani } from "next/font/google";
 import "./globals.css";
@@ -20,10 +20,18 @@ export const metadata: Metadata = {
   }
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#050507",
+  colorScheme: "dark"
+};
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${inter.variable} ${rajdhani.variable}`}>
-      <body className="min-h-screen font-sans antialiased">
+      <body className="min-h-screen font-sans antialiased safe-top">
         {children}
         <TeamFeedbackWidget />
         <Footer />
