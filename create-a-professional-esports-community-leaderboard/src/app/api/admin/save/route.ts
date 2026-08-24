@@ -106,6 +106,29 @@ function comparableGeneric(value: unknown): string {
   }
   return JSON.stringify(value ?? "");
 }
+function verifyRankings(expected: unknown[] | undefined, actual: unknown[]) {
+  if (!Array.isArray(expected)) return;
+  const actualItems = Array.isArray(actual) ? actual : [];
+  const key = (r: any) => [
+    String(r.teamId ?? "").trim(),
+    String(r.teamName ?? "").trim().toLowerCase(),
+    Number(r.rank ?? 0),
+    Number(r.communityScore ?? r.communityPoints ?? 0),
+    Number(r.championships ?? 0),
+    Number(r.runnerUp ?? 0),
+    Number(r.secondRunnerUp ?? 0),
+    Number(r.top5Finishes ?? 0)
+  ].join("|");
+  const expectedSet = new Set(expected.map(key));
+  const actualSet = new Set(actualItems.map(key));
+  if (expectedSet.size !== actualSet.size || expectedSet.size !== expected.length || expectedSet.size !== actualItems.length) {
+    throw new Error("Community Rankings were written but the Google Sheets read-back does not match. Please retry the save.");
+  }
+  for (const item of expectedSet) {
+    if (!actualSet.has(item)) throw new Error("Community Rankings were written but the Google Sheets read-back does not match. Please retry the save.");
+  }
+}
+
 function verifyGenericSection(expected: unknown[] | undefined, actual: unknown, section: string) {
   if (!Array.isArray(expected)) return;
   const actualItems = Array.isArray(actual) ? actual : [];
@@ -120,7 +143,7 @@ async function verifyGoogleSheetsSave(webhookUrl: string, data: Record<string, u
   // Events/collaborators/news are verified against the fields returned by the API.
   // Their generated timestamps and ordering are ignored by comparableGeneric.
   if (hasEvents) verifyGenericSection(data.events as unknown[], saved?.events, "Events");
-  if (hasRankings) verifyGenericSection(data.rankings as unknown[], saved?.rankings, "Community Rankings");
+  if (hasRankings) verifyRankings(data.rankings as unknown[], saved?.rankings || []);
   if (hasCollaborators) verifyGenericSection(data.collaborators as unknown[], saved?.collaborators, "Collaborators");
   if (hasNews) verifyGenericSection(data.news as unknown[], saved?.news, "News");
   return saved;
