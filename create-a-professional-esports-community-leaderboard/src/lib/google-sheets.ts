@@ -23,7 +23,60 @@ async function fetchSheetPayload(): Promise<any | null> { const webhookUrl = pro
 async function fetchFromGoogleAppsScript(): Promise<RawTeam[] | null> { const payload = await fetchSheetPayload(); if (!payload) return null; const teams = Array.isArray(payload) ? payload : payload?.teams; if (!Array.isArray(teams)) { console.error("Google Sheets read error: response did not contain a teams array"); return null; } return teams.map((team: Record<string, any>) => normalizeTeam(team)); }
 export async function getRegisteredTeams(): Promise<RawTeam[]> { const teams = await fetchFromGoogleAppsScript(); const source = teams !== null ? teams : await fetchFromLocalFile(); const finalTeams = source !== null ? source : sampleTeams; return finalTeams.filter((team) => String(team.registrationStatus || team.status || "Registered").toLowerCase() !== "hidden").map((team) => ({ ...normalizeTeam(team as any), slug: (team as any).slug || slugify(team.teamName) })).sort((a, b) => a.teamName.localeCompare(b.teamName)); }
 export async function getTournamentNews(): Promise<TournamentNews[]> { const payload = await fetchSheetPayload(); if (!payload || Array.isArray(payload)) return []; const news = Array.isArray(payload.news) ? payload.news : []; return news.map((item: Record<string, any>) => ({ id: String(item.id ?? item.ID ?? ""), title: String(item.title ?? item.Title ?? ""), description: String(item.description ?? item.Description ?? ""), date: String(item.date ?? item.Date ?? ""), type: String(item.type ?? item.Type ?? ""), status: String(item.status ?? item.Status ?? "Published"), imageUrl: String(item.imageUrl ?? item.ImageURL ?? ""), link: String(item.link ?? item.Link ?? "") })).filter((item: TournamentNews) => String(item.status || "Published").toLowerCase() !== "hidden"); }
-export async function getRankedTeams(): Promise<RankedTeam[]> { try { const teams = await fetchFromGoogleAppsScript(); const source = teams !== null ? teams : await fetchFromLocalFile(); const finalTeams = source !== null ? source : sampleTeams; const events = await getTrackedEvents(); return rankTeams(finalTeams, events); } catch (error) { console.error("Ranking data error:", error); return rankTeams((await fetchFromLocalFile()) || sampleTeams); } }
+export async function getRankedTeams(): Promise<RankedTeam[]> {
+  try {
+    const payload = await fetchSheetPayload();
+    if (payload && Array.isArray(payload.rankings)) {
+      const teamsRaw = Array.isArray(payload.teams) ? payload.teams : [];
+      const byId = new Map(teamsRaw.map((team: any) => [String(team.teamId ?? team.id ?? ""), team]));
+      const byName = new Map(teamsRaw.map((team: any) => [String(team.teamName ?? team.team ?? "").trim().toLowerCase(), team]));
+
+      const ranked = payload.rankings
+        .filter((r: any) => String(r?.status ?? "Active").toLowerCase() !== "hidden")
+        .map((r: any) => {
+          const base = byId.get(String(r.teamId ?? "")) || byName.get(String(r.teamName ?? "").trim().toLowerCase()) || {};
+          const matches = asNumber(r.matchesPlayed ?? base.matchesPlayed, 0);
+          const kills = asNumber(r.kills ?? base.kills, 0);
+          const booyahs = asNumber(r.booyahs ?? base.booyahs, 0);
+          return normalizeTeam({
+            ...base,
+            ...r,
+            teamName: r.teamName ?? base.teamName,
+            slug: r.slug ?? base.slug,
+            logoUrl: r.logoUrl ?? base.logoUrl,
+            bannerUrl: r.bannerUrl ?? base.bannerUrl,
+            roster: base.roster ?? [],
+            players: base.players ?? 0,
+            kills,
+            booyahs,
+            matchesPlayed: matches,
+            eventsPlayed: asNumber(r.eventsPlayed ?? base.eventsPlayed, 0),
+            championships: asNumber(r.championships, 0),
+            runnerUp: asNumber(r.runnerUp, 0),
+            secondRunnerUp: asNumber(r.secondRunnerUp, 0),
+            top5Finishes: asNumber(r.top5Finishes, 0),
+            communityPoints: asNumber(r.communityScore ?? r.communityPoints, 0),
+            rank: asNumber(r.rank, 0),
+            previousRank: asNumber(r.previousRank, 0),
+            badge: String(r.badge ?? ""),
+            rankingEligible: String(r.eligible ?? "Yes").toLowerCase() !== "no"
+          });
+        })
+        .filter((team: any) => team.teamName);
+
+      return ranked.sort((a: any, b: any) => Number(a.rank || 999999) - Number(b.rank || 999999)) as RankedTeam[];
+    }
+
+    const teams = await fetchFromGoogleAppsScript();
+    const source = teams !== null ? teams : await fetchFromLocalFile();
+    const finalTeams = source !== null ? source : sampleTeams;
+    const events = await getTrackedEvents();
+    return rankTeams(finalTeams, events);
+  } catch (error) {
+    console.error("Ranking data error:", error);
+    return rankTeams((await fetchFromLocalFile()) || sampleTeams);
+  }
+}
 export async function getTeamBySlug(slug: string) { const teams = await getRegisteredTeams(); return teams.find((team) => slugify(team.teamName) === slug || (team as any).slug === slug); }
 function base64url(input: string | Buffer) { return Buffer.from(input).toString("base64").replace(/=+$/g, "").replace(/\+/g, "-").replace(/\//g, "_"); }
 async function getServiceAccountAccessToken(serviceAccountJson: string) { const sa = JSON.parse(serviceAccountJson); const iat = Math.floor(Date.now() / 1000); const exp = iat + 3600; const header = { alg: "RS256", typ: "JWT" }; const claim = { iss: sa.client_email, scope: "https://www.googleapis.com/auth/spreadsheets", aud: "https://oauth2.googleapis.com/token", exp, iat }; const unsigned = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(claim))}`; const sign = crypto.createSign("RSA-SHA256"); const key = sa.private_key.replace(/\\n/g, "\n"); sign.update(unsigned); const signature = sign.sign(key); const jwt = `${unsigned}.${base64url(signature)}`; const resp = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${encodeURIComponent(jwt)}` }); if (!resp.ok) throw new Error(`Service account token request failed: ${resp.status}`); const payload = await resp.json(); return payload.access_token as string; }
