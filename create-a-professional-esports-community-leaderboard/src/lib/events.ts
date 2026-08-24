@@ -105,12 +105,12 @@ async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
   const rawUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
   if (!rawUrl) return null;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
+  const timeout = setTimeout(() => controller.abort(), 6000);
   try {
-    const response = await fetch(withCacheBuster(rawUrl), {
+    const response = await fetch(rawUrl, {
       method: "GET",
-      cache: "no-store",
-      headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0" },
+      next: { revalidate: 15 },
+      headers: { Accept: "application/json" },
       signal: controller.signal
     });
     if (!response.ok) return null;
