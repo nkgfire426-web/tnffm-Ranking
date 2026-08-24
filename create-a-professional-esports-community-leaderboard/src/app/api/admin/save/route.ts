@@ -1,6 +1,6 @@
 import { rankTeams } from "@/lib/rankings";
 import { NextRequest, NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 const MAX_IMAGE_DATA_URL_LENGTH = 4_000_000;
 const num = (value: unknown) => { const n = Number(value); return Number.isFinite(n) ? n : 0; };
@@ -242,7 +242,16 @@ export async function POST(request: NextRequest) {
     const result = await response.json().catch(() => ({}));
     if (!response.ok || result.ok === false) return NextResponse.json({ ok: false, message: result.message || "Google Sheet update failed." }, { status: 502 });
     await verifyGoogleSheetsSave(webhookUrl, data, hasTeams, hasEvents, hasCollaborators, hasNews, Array.isArray(data.rankings));
-    revalidatePath("/"); revalidatePath("/admin"); revalidatePath("/admin/news"); revalidatePath("/collaborators");
+    // Invalidate the shared Google Sheets Data Cache immediately so the public
+    // homepage/ranking pages never remain on the pre-save snapshot.
+    revalidateTag("tnffm-sheet", "max");
+    revalidatePath("/");
+    revalidatePath("/ranking");
+    revalidatePath("/teams");
+    revalidatePath("/tracked-events");
+    revalidatePath("/admin");
+    revalidatePath("/admin/news");
+    revalidatePath("/collaborators");
     return NextResponse.json({ ok: true, googleSheets: true, verified: true, logosPersisted: true, rankingsCalculated: true, message: "Saved to Google Sheets and verified successfully." });
   } catch (error) {
     console.error("Google Sheets save/verification error:", error);
