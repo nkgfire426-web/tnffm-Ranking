@@ -459,7 +459,18 @@ function saveAll_(ss,b) {
   try {
     if(Array.isArray(b.teams))writeTeams_(ss,b.teams);
     if(Array.isArray(b.rosters))writeRosters_(ss,b.rosters);
-    if(Array.isArray(b.rankings))writeRankings_(ss,b.rankings);
+    if(Array.isArray(b.rankings)) {
+      writeRankings_(ss,b.rankings);
+    } else if(Array.isArray(b.teams)) {
+      // Keep the dedicated Community Rankings tab synchronized with the
+      // admin's team ranking fields even when the frontend sends only teams.
+      writeRankings_(ss,b.teams.map((t,i)=>({
+        ...t,
+        rank: t.rank || i + 1,
+        communityScore: t.communityScore ?? t.communityPoints ?? 0,
+        eligible: t.rankingEligible === false ? 'No' : 'Yes'
+      })));
+    }
     if(Array.isArray(b.events))writeEvents_(ss,b.events);
     if(Array.isArray(b.results))writeResults_(ss,b.results);
     if(Array.isArray(b.collaborators))writeObjects_(ss,TABS.COLLAB,b.collaborators);
