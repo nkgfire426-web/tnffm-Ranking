@@ -96,6 +96,52 @@ function verifySavedTeams(expected: unknown[] | undefined, actual: unknown) {
   const actualSet = new Set(actualComparable);
   for (const item of expectedComparable) if (!actualSet.has(item)) throw new Error("Teams were written but the Google Sheets read-back does not match. Please retry the save.");
 }
+function normalizeBool(value: unknown): string {
+  if (value === true || String(value).trim().toLowerCase() === "true" || String(value).trim() === "yes") return "true";
+  if (value === false || String(value).trim().toLowerCase() === "false" || String(value).trim() === "no" || value == null || value === "") return "false";
+  return String(value).trim().toLowerCase();
+}
+function normalizeResults(value: unknown): unknown[] {
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try { parsed = JSON.parse(parsed); } catch { parsed = []; }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.map((r: any) => ({
+    resultId: String(r?.resultId ?? r?.id ?? "").trim(),
+    teamId: String(r?.teamId ?? "").trim(),
+    teamName: String(r?.teamName ?? r?.team ?? "").trim(),
+    position: num(r?.position ?? r?.rank),
+    kills: num(r?.kills),
+    booyahs: num(r?.booyahs),
+    positionPoints: num(r?.positionPoints),
+    killPoints: num(r?.killPoints),
+    totalPoints: num(r?.totalPoints ?? r?.total),
+    proofUrl: String(r?.proofUrl ?? r?.proofURL ?? "").trim(),
+    verified: normalizeBool(r?.verified)
+  })).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+}
+function comparableEvent(event: unknown): string {
+  const e = { ...(event as Record<string, unknown>) };
+  return JSON.stringify({
+    eventId: String(e.eventId ?? e.id ?? "").trim(),
+    name: String(e.name ?? e.eventName ?? "").trim(),
+    organizer: String(e.organizer ?? "").trim(),
+    teams: num(e.teams ?? e.teamCount),
+    prize: String(e.prize ?? e.prizePool ?? "").trim(),
+    status: String(e.status ?? "Confirmed").trim() || "Confirmed",
+    counted: normalizeBool(e.counted),
+    date: String(e.date ?? e.eventDate ?? "").trim(),
+    notes: String(e.notes ?? "").trim(),
+    matchesPlayed: num(e.matchesPlayed),
+    published: normalizeBool(e.published),
+    results: normalizeResults(e.results)
+  });
+}
+function comparableEventList(items: unknown[]): string[] {
+  return items.map(comparableEvent).sort();
+}
+
 function comparableGeneric(value: unknown): string {
   if (Array.isArray(value)) return JSON.stringify(value.map(comparableGeneric).sort());
   if (value && typeof value === "object") {
@@ -140,9 +186,21 @@ function verifyGenericSection(expected: unknown[] | undefined, actual: unknown, 
 async function verifyGoogleSheetsSave(webhookUrl: string, data: Record<string, unknown>, hasTeams: boolean, hasEvents: boolean, hasCollaborators: boolean, hasNews: boolean, hasRankings: boolean) {
   const saved = await readBackGoogleSheets(webhookUrl);
   if (hasTeams) verifySavedTeams(data.teams as unknown[], saved?.teams);
-  // Events/collaborators/news are verified against the fields returned by the API.
-  // Their generated timestamps and ordering are ignored by comparableGeneric.
-  if (hasEvents) verifyGenericSection(data.events as unknown[], saved?.events, "Events");
+  // Apps Script normalizes event field names/types and generates timestamps.
+  // Compare the stable event fields only, rather than the raw frontend objects.
+  if (hasEvents) {
+    const expectedEvents = comparableEventList(data.events as unknown[]);
+    const actualEvents = comparableEventList(Array.isArray(saved?.events) ? saved.events : []);
+    if (expectedEvents.length !== actualEvents.length) {
+      throw new Error(`Events were written but Google Sheets returned ${actualEvents.length} events instead of ${expectedEvents.length}. Please retry the save.`);
+    }
+    const actualEventSet = new Set(actualEvents);
+    for (const item of expectedEvents) {
+      if (!actualEventSet.has(item)) {
+        throw new Error("Events were written but the Google Sheets read-back does not match. Please retry the save.");
+      }
+    }
+  }
   if (hasRankings) verifyRankings(data.rankings as unknown[], saved?.rankings || []);
   if (hasCollaborators) verifyGenericSection(data.collaborators as unknown[], saved?.collaborators, "Collaborators");
   if (hasNews) verifyGenericSection(data.news as unknown[], saved?.news, "News");
