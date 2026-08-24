@@ -15,7 +15,20 @@ const POSTER_SIZES: Record<PosterRatio, { width: number; height: number; label: 
 const DEFAULT_PLAYER_LOGO = "/tnffm-default-player.svg";
 
 function normalizePlayers(value: unknown): Player[] { if (!Array.isArray(value)) return []; return value.map((p: any) => ({ name: String(p?.name ?? "").trim(), uid: String(p?.uid ?? "").trim(), playerLogoUrl: String(p?.playerLogoUrl ?? p?.PlayerLogoURL ?? p?.playerLogo ?? "").trim() || undefined })).filter((p) => p.name || p.uid || p.playerLogoUrl); }
-function posterPlayerSrc(url?: string) { const value = String(url ?? "").trim(); if (!value) return DEFAULT_PLAYER_LOGO; if (/drive\.google\.com|drive\.usercontent\.google\.com/i.test(value)) return `/api/team/logo?url=${encodeURIComponent(value)}`; try { const parsed = new URL(value); return /^https?:$/.test(parsed.protocol) ? parsed.toString() : DEFAULT_PLAYER_LOGO; } catch { return DEFAULT_PLAYER_LOGO; } }
+function posterPlayerSrc(url?: string) {
+  const value = String(url ?? "").trim();
+  if (!value) return DEFAULT_PLAYER_LOGO;
+  if (value.startsWith("/api/team/logo?")) return value;
+  try {
+    const parsed = new URL(value, window.location.origin);
+    if (!/^https?:$/.test(parsed.protocol)) return DEFAULT_PLAYER_LOGO;
+    // Proxy every external player logo through our same-origin route so html-to-image
+    // can embed it in the downloaded poster without CORS failures.
+    return "/api/team/logo?url=" + encodeURIComponent(parsed.toString());
+  } catch {
+    return DEFAULT_PLAYER_LOGO;
+  }
+}
 
 export default function TeamDashboardPage() {
   const [team, setTeam] = useState<Team | null>(null); const [username, setUsername] = useState(""); const [logoUrl, setLogoUrl] = useState(""); const [mobileNumber, setMobileNumber] = useState(""); const [description, setDescription] = useState(""); const [roster, setRoster] = useState<Player[]>([]); const [message, setMessage] = useState(""); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [generatingPoster, setGeneratingPoster] = useState(false); const [showLogoGuide, setShowLogoGuide] = useState(false); const [showPosterOptions, setShowPosterOptions] = useState(false); const [posterRatio, setPosterRatio] = useState<PosterRatio>("4:5"); const [showPassword, setShowPassword] = useState(false); const [currentPassword, setCurrentPassword] = useState(""); const [newPassword, setNewPassword] = useState(""); const [confirmPassword, setConfirmPassword] = useState(""); const [passwordSaving, setPasswordSaving] = useState(false); const [canEdit, setCanEdit] = useState(false); const posterRef = useRef<HTMLDivElement>(null);
