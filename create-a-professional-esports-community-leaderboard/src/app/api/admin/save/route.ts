@@ -51,11 +51,18 @@ async function persistLogos(webhookUrl: string, teams: unknown[], collaborators:
   return { normalizedTeams, normalizedCollaborators };
 }
 
-function cleanRoster(value: unknown): Array<{name: string; uid: string}> {
+function cleanRoster(value: unknown): Array<{name: string; uid: string; role: string; playerLogoUrl: string}> {
   let roster: unknown = value;
   if (typeof roster === "string") { try { roster = JSON.parse(roster); } catch { roster = []; } }
   if (!Array.isArray(roster)) return [];
-  return roster.map((p) => ({ name: String((p as any)?.name ?? "").trim(), uid: String((p as any)?.uid ?? "").trim() })).filter((p) => p.name || p.uid);
+  return roster
+    .map((p) => ({
+      name: String((p as any)?.name ?? "").trim(),
+      uid: String((p as any)?.uid ?? "").trim(),
+      role: String((p as any)?.role ?? "").trim(),
+      playerLogoUrl: String((p as any)?.playerLogoUrl ?? (p as any)?.playerLogo ?? "").trim()
+    }))
+    .filter((p) => p.name || p.uid || p.role || p.playerLogoUrl);
 }
 function comparableTeam(team: unknown) {
   const t = { ...(team as Record<string, unknown>) };
