@@ -225,12 +225,15 @@ export async function POST(request: NextRequest) {
         // Calculate the dedicated ranking sheet from the same published
         // event results used by the public leaderboard.
         const ranked = rankTeams(normalizedTeams as any, payload.events as any);
-        data.rankings = ranked.map((team: any) => ({
-          ...team,
-          teamId: team.teamId || normalizedTeams.find((t: any) =>
+        data.rankings = ranked.map((team: any) => {
+          const matchedTeam = normalizedTeams.find((t: any) =>
             String(t.teamName || "").trim().toLowerCase() === String(team.teamName || "").trim().toLowerCase()
-          )?.teamId
-        }));
+          );
+          return {
+            ...team,
+            teamId: (team as any).teamId || (matchedTeam as any)?.teamId || ""
+          };
+        });
       }
     }
     if (hasCollaborators) data.collaborators = normalizedCollaborators;
