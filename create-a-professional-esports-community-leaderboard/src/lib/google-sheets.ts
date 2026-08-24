@@ -101,7 +101,20 @@ export async function getRankedTeams(): Promise<RankedTeam[]> {
         })
         .filter((team: any) => team.teamName);
 
-      return ranked.sort((a: any, b: any) => Number(a.rank || 999999) - Number(b.rank || 999999)) as RankedTeam[];
+      // The dedicated Community Rankings tab is the published source of truth.
+      // If it is temporarily empty/stale while Events already contains published
+      // results, calculate the same public ranking from those results instead of
+      // rendering an empty/old leaderboard.
+      if (ranked.length > 0) {
+        return ranked.sort((a: any, b: any) => Number(a.rank || 999999) - Number(b.rank || 999999)) as RankedTeam[];
+      }
+
+      const teamsForFallback = teamsRaw.map((team: Record<string, any>) => normalizeTeam(team));
+      const eventsForFallback = await getTrackedEvents();
+      const calculatedFallback = rankTeams(teamsForFallback, eventsForFallback);
+      if (calculatedFallback.length > 0) return calculatedFallback;
+
+      return [];
     }
 
     const teams = await fetchFromGoogleAppsScript();
