@@ -33,8 +33,8 @@ export async function getRegisteredTeams(): Promise<RawTeam[]> {
   const rankingByName = new Map(rankings.map((r: any) => [String(r.teamName ?? "").trim().toLowerCase(), r]));
 
   return finalTeams
-    .filter((team) => String(team.registrationStatus || team.status || "Registered").toLowerCase() !== "hidden")
-    .map((team) => {
+    .filter((team: any) => String(team.registrationStatus || team.status || "Registered").toLowerCase() !== "hidden")
+    .map((team: any) => {
       const normalized: any = normalizeTeam(team as any);
       const ranking = rankingById.get(String((team as any).teamId ?? "")) ||
         rankingByName.get(normalized.teamName.trim().toLowerCase());
