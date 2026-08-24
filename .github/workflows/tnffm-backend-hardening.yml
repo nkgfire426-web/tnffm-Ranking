@@ -1,0 +1,129 @@
+name: TNFFM Backend Hardening
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  harden:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch Google Apps Script team deletion
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("create-a-professional-esports-community-leaderboard/google-apps-script/Code.gs")
+          text = path.read_text(encoding="utf-8")
+
+          action_marker = 'case "deleteteam": return deleteRegisteredTeam_(ss, body);'
+          if action_marker not in text:
+              marker = '      case "registerteam": return registerTeam_(ss, body);\n'
+              if marker not in text:
+                  raise SystemExit("registerteam switch marker not found")
+              text = text.replace(marker, marker + action_marker + "\n", 1)
+
+          function_marker = 'function registerTeam_(ss, b) {'
+          function_code = r'''
+function deleteRegisteredTeam_(ss, b) {
+  const slug = clean_(b.teamSlug).toLowerCase();
+  if (!slug) return json_({ok:false,message:"Team slug is required."});
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const teamsSheet = getOrCreateSheet_(ss, "Teams");
+    ensureHeaders_(teamsSheet, TEAM_HEADERS);
+    const accountsSheet = getOrCreateSheet_(ss, "TeamAccounts");
+    ensureHeaders_(accountsSheet, ACCOUNT_HEADERS);
+
+    let teamRemoved = false;
+    let accountRemoved = false;
+
+    // Remove the team row by slug while preserving all event/history sheets.
+    if (teamsSheet.getLastRow() >= 2) {
+      const values = teamsSheet.getRange(2, 1, teamsSheet.getLastRow() - 1, TEAM_HEADERS.length).getValues();
+      for (let i = values.length - 1; i >= 0; i--) {
+        if (clean_(values[i][1]).toLowerCase() === slug) {
+          teamsSheet.deleteRow(i + 2);
+          teamRemoved = true;
+        }
+      }
+    }
+
+    // Remove every account linked to this team slug. This intentionally does not
+    // touch Submissions, Events, Feedback, or ranking history.
+    if (accountsSheet.getLastRow() >= 2) {
+      const values = accountsSheet.getRange(2, 1, accountsSheet.getLastRow() - 1, ACCOUNT_HEADERS.length).getValues();
+      for (let i = values.length - 1; i >= 0; i--) {
+        if (clean_(values[i][2]).toLowerCase() === slug) {
+          accountsSheet.deleteRow(i + 2);
+          accountRemoved = true;
+        }
+      }
+    }
+
+    SpreadsheetApp.flush();
+    if (!teamRemoved && !accountRemoved) {
+      return json_({ok:false,message:"No registered team or team account matched this team slug."});
+    }
+
+    return json_({
+      ok:true,
+      teamSlug:slug,
+      teamRemoved:teamRemoved,
+      accountRemoved:accountRemoved,
+      message:"Registered team and linked team account removed. Event history was preserved."
+    });
+  } catch (e) {
+    return json_({ok:false,message:"Team deletion failed: " + errorMessage_(e)});
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+'''
+          if 'function deleteRegisteredTeam_(ss, b) {' not in text:
+              if function_marker not in text:
+                  raise SystemExit("registerTeam function marker not found")
+              text = text.replace(function_marker, function_code + function_marker, 1)
+
+          path.write_text(text, encoding="utf-8")
+
+      - name: Validate Apps Script source
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path("create-a-professional-esports-community-leaderboard/google-apps-script/Code.gs")
+          s = p.read_text(encoding="utf-8")
+          required = [
+              'case "deleteteam": return deleteRegisteredTeam_(ss, body);',
+              'function deleteRegisteredTeam_(ss, b) {',
+              'TeamAccounts',
+              'Submissions',
+              'Events'
+          ]
+          missing = [x for x in required if x not in s]
+          if missing:
+              raise SystemExit("Missing hardening markers: " + repr(missing))
+          print("TNFFM Apps Script hardening validation passed")
+
+      - name: Commit patch if needed
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add create-a-professional-esports-community-leaderboard/google-apps-script/Code.gs
+          if git diff --cached --quiet; then
+            echo "No backend patch needed"
+            exit 0
+          fi
+          git commit -m "Fix registered team and account deletion in Apps Script"
+          git push
