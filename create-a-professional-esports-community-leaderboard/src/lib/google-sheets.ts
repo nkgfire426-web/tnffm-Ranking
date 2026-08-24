@@ -17,7 +17,9 @@ export type TournamentNews = {
   link?: string;
 };
 
-const DEFAULT_LOGO_URL = "https://i.imgur.com/6YQfM6M.png";
+// The website owns the visual fallback. Keep Google Sheets storage/display data
+// empty instead of injecting a third-party logo URL into team data.
+const DEFAULT_LOGO_URL = "";
 
 function asNumber(value: unknown, fallback = 0) {
   const n = Number(value);
@@ -26,7 +28,7 @@ function asNumber(value: unknown, fallback = 0) {
 
 function normalizeLogo(url: unknown) {
   const value = String(url ?? "").trim();
-  return value || DEFAULT_LOGO_URL;
+  return value;
 }
 
 function normalizeTeam(input: Record<string, any>): RawTeam {
@@ -77,7 +79,11 @@ async function fetchFromLocalFile(): Promise<RawTeam[] | null> {
 
 async function fetchSheetPayload(): Promise<any | null> {
   const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
-  if (!webhookUrl) return null;
+  if (!webhookUrl) {
+    console.error("Google Sheets read error: GOOGLE_SHEETS_WEBHOOK_URL is not configured");
+    return null;
+  }
+
   try {
     const response = await fetch(webhookUrl, {
       method: "GET",
@@ -85,7 +91,11 @@ async function fetchSheetPayload(): Promise<any | null> {
       headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0" }
     });
     if (!response.ok) throw new Error(`Google Apps Script returned ${response.status}`);
-    return await response.json();
+    const payload = await response.json();
+    if (!payload || payload.ok === false) {
+      throw new Error(String(payload?.message || "Google Apps Script returned an unsuccessful response"));
+    }
+    return payload;
   } catch (error) {
     console.error("Google Sheets read error:", error);
     return null;
@@ -94,9 +104,16 @@ async function fetchSheetPayload(): Promise<any | null> {
 
 async function fetchFromGoogleAppsScript(): Promise<RawTeam[] | null> {
   const payload = await fetchSheetPayload();
-  if (!payload || payload.ok === false) return null;
+  if (!payload) return null;
   const teams = Array.isArray(payload) ? payload : payload?.teams;
-  return Array.isArray(teams) ? teams.map((team: Record<string, any>) => normalizeTeam(team)) : null;
+
+  // An empty array from the live endpoint is treated as a failed/empty sync
+  // rather than as authoritative data. This prevents the production homepage
+  // from replacing the last usable ranking dataset with 0 teams after an
+  // Apps Script/API problem. A real empty sheet still renders as empty when no
+  // local fallback exists.
+  if (!Array.isArray(teams) || teams.length === 0) return null;
+  return teams.map((team: Record<string, any>) => normalizeTeam(team));
 }
 
 export async function getRegisteredTeams(): Promise<RawTeam[]> {
