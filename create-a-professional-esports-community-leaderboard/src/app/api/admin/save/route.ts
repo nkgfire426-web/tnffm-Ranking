@@ -1,3 +1,4 @@
+import { rankTeams } from "@/lib/rankings";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 
@@ -136,7 +137,20 @@ export async function POST(request: NextRequest) {
     const normalizedTeams = normalizeTeamsForSheet(logoTeams);
     const data: Record<string, unknown> = {};
     if (hasTeams) data.teams = normalizedTeams;
-    if (hasEvents) data.events = payload.events!;
+    if (hasEvents) {
+      data.events = payload.events!;
+      if (hasTeams) {
+        // Calculate the dedicated ranking sheet from the same published
+        // event results used by the public leaderboard.
+        const ranked = rankTeams(normalizedTeams as any, payload.events as any);
+        data.rankings = ranked.map((team: any) => ({
+          ...team,
+          teamId: team.teamId || normalizedTeams.find((t: any) =>
+            String(t.teamName || "").trim().toLowerCase() === String(team.teamName || "").trim().toLowerCase()
+          )?.teamId
+        }));
+      }
+    }
     if (hasCollaborators) data.collaborators = normalizedCollaborators;
     if (hasNews) data.news = payload.news!;
     const response = await fetch(webhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify(data) });
