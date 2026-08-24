@@ -114,12 +114,13 @@ function verifyGenericSection(expected: unknown[] | undefined, actual: unknown, 
   const actualSet = new Set(actualItems.map(comparableGeneric));
   for (const item of expectedSet) if (!actualSet.has(item)) throw new Error(`${section} was written but the Google Sheets read-back does not match. Please retry the save.`);
 }
-async function verifyGoogleSheetsSave(webhookUrl: string, data: Record<string, unknown>, hasTeams: boolean, hasEvents: boolean, hasCollaborators: boolean, hasNews: boolean) {
+async function verifyGoogleSheetsSave(webhookUrl: string, data: Record<string, unknown>, hasTeams: boolean, hasEvents: boolean, hasCollaborators: boolean, hasNews: boolean, hasRankings: boolean) {
   const saved = await readBackGoogleSheets(webhookUrl);
   if (hasTeams) verifySavedTeams(data.teams as unknown[], saved?.teams);
   // Events/collaborators/news are verified against the fields returned by the API.
   // Their generated timestamps and ordering are ignored by comparableGeneric.
   if (hasEvents) verifyGenericSection(data.events as unknown[], saved?.events, "Events");
+  if (hasRankings) verifyGenericSection(data.rankings as unknown[], saved?.rankings, "Community Rankings");
   if (hasCollaborators) verifyGenericSection(data.collaborators as unknown[], saved?.collaborators, "Collaborators");
   if (hasNews) verifyGenericSection(data.news as unknown[], saved?.news, "News");
   return saved;
@@ -156,7 +157,7 @@ export async function POST(request: NextRequest) {
     const response = await fetch(webhookUrl, { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify(data) });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || result.ok === false) return NextResponse.json({ ok: false, message: result.message || "Google Sheet update failed." }, { status: 502 });
-    await verifyGoogleSheetsSave(webhookUrl, data, hasTeams, hasEvents, hasCollaborators, hasNews);
+    await verifyGoogleSheetsSave(webhookUrl, data, hasTeams, hasEvents, hasCollaborators, hasNews, Array.isArray(data.rankings));
     revalidatePath("/"); revalidatePath("/admin"); revalidatePath("/admin/news"); revalidatePath("/collaborators");
     return NextResponse.json({ ok: true, googleSheets: true, verified: true, logosPersisted: true, rankingsCalculated: true, message: "Saved to Google Sheets and verified successfully." });
   } catch (error) {
