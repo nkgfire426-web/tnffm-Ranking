@@ -5,10 +5,10 @@ import { slugify } from "./rankings";
 function mergeProfile(ranking: RankedTeam, profile?: RawTeam): RankedTeam {
   if (!profile) return ranking;
 
+  // Community Rankings is the sole authority for all ranking fields.
+  // Registered Teams/Rosters may only hydrate profile fields.
   return {
     ...ranking,
-    teamName: profile.teamName || ranking.teamName,
-    slug: (profile as any).slug || ranking.slug || slugify(profile.teamName),
     logoUrl: profile.logoUrl || ranking.logoUrl,
     bannerUrl: profile.bannerUrl || ranking.bannerUrl,
     players: Number((profile as any).players) || ranking.players || profile.roster?.length || 0,
@@ -17,7 +17,10 @@ function mergeProfile(ranking: RankedTeam, profile?: RawTeam): RankedTeam {
     registrationStatus: (profile as any).registrationStatus || ranking.registrationStatus,
     description: (profile as any).description || ranking.description,
     mobileNumber: (profile as any).mobileNumber || ranking.mobileNumber,
-    lastUpdated: String((profile as any).lastUpdated ?? (ranking as any).lastUpdated ?? ""),
+    // Keep the published ranking identity/slug/name and ranking timestamp intact.
+    teamName: ranking.teamName,
+    slug: ranking.slug || (profile as any).slug || slugify(ranking.teamName),
+    lastUpdated: String((ranking as any).lastUpdated ?? (profile as any).lastUpdated ?? ""),
   } as RankedTeam;
 }
 
@@ -60,7 +63,7 @@ export async function getPublicTeamData(): Promise<RankedTeam[]> {
     if (name) rankedByName.set(name, ranking);
   }
 
-  const result: RankedTeam[] = registered.map((profile) => {
+  return registered.map((profile) => {
     const id = String((profile as any).teamId ?? (profile as any).id ?? "").trim();
     const name = String(profile.teamName ?? "").trim().toLowerCase();
     const ranking = (id && rankedById.get(id)) || rankedByName.get(name);
@@ -88,8 +91,6 @@ export async function getPublicTeamData(): Promise<RankedTeam[]> {
       rankingEligible: Boolean(profile.rankingEligible),
     } as RankedTeam;
   });
-
-  return result;
 }
 
 export async function getUnifiedTeamBySlug(slug: string) {
