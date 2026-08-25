@@ -1,8 +1,7 @@
 type CacheEntry = { payload: any; expiresAt: number; storedAt: number };
 
-// Keep the in-process cache intentionally short. The durable Next/Vercel
-// request cache remains the primary performance layer; this cache is for
-// request de-duplication and a very short transient-error safety net.
+// Keep the in-process cache intentionally short. It is used for request
+// de-duplication and as a bounded transient-error safety net only.
 const CACHE_TTL_MS = 5000;
 const MAX_STALE_MS = 60000;
 
@@ -20,11 +19,8 @@ export function getLastSheetPayload(): any | null {
 }
 
 export function setCachedSheetPayload(payload: any) {
-  cache = {
-    payload,
-    expiresAt: Date.now() + CACHE_TTL_MS,
-    storedAt: Date.now(),
-  };
+  const now = Date.now();
+  cache = { payload, expiresAt: now + CACHE_TTL_MS, storedAt: now };
 }
 
 export function getSheetReadInFlight(): Promise<any | null> | null {
