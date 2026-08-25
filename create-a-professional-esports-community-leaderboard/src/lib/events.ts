@@ -62,9 +62,6 @@ function normalizeEvent(event: Record<string, unknown>): TrackedEvent {
 
   const results = parseResults(event.results ?? event.Results ?? event.resultData ?? event.ResultData)
     .map((result) => {
-      // parseResults returns EventResult for normal data, but Google Sheets can
-      // contain legacy result objects using alternate property names. Keep the
-      // parser tolerant without making TypeScript reject those legacy fields.
       const r = result as EventResult & Record<string, unknown>;
       const kills = Math.max(0, Math.floor(asNumber(r.kills ?? r.Kills, 0)));
       const booyahs = Math.max(0, Math.floor(asNumber(r.booyahs ?? r.Booyahs, 0)));
@@ -132,7 +129,9 @@ async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
 
   const request = (async () => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
+    // Keep the events-only route consistent with the shared live Sheet reader.
+    // Do not fail after 6s while the canonical Apps Script is still working.
+    const timeout = setTimeout(() => controller.abort(), 9000);
     try {
       const url = new URL(rawUrl);
       url.searchParams.set("_tnffm_events", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
