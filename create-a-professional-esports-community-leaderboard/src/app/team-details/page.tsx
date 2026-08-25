@@ -1,12 +1,12 @@
 import { Header } from "@/components/Header";
 import { TeamDetailsClient } from "@/components/TeamDetailsClient";
-import { getUnifiedTeamData } from "@/lib/site-data";
+import { getPublicTeamData } from "@/lib/site-data";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function TeamDetailsPage() {
-  const teams = await getUnifiedTeamData();
+  const teams = await getPublicTeamData();
 
   return (
     <main>
