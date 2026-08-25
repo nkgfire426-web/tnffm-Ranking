@@ -2,6 +2,13 @@ import { rankTeams, slugify } from "./rankings";
 import type { RawTeam, RankedTeam } from "./types";
 import { getTrackedEvents } from "./events";
 import crypto from "crypto";
+import {
+  getCachedSheetPayload,
+  getLastSheetPayload,
+  getSheetReadInFlight,
+  setCachedSheetPayload,
+  setSheetReadInFlight,
+} from "./sheet-cache";
 
 export type TournamentNews = {
   id?: string;
@@ -14,8 +21,8 @@ export type TournamentNews = {
   link?: string;
 };
 
-const SHEET_TIMEOUT_MS = 8000;
-const SHEET_RETRIES = 2;
+const SHEET_TIMEOUT_MS = 6000;
+const SHEET_RETRIES = 1;
 
 function asNumber(value: unknown, fallback = 0) {
   const n = Number(value);
@@ -97,7 +104,7 @@ function normalizeTeam(input: Record<string, any>): RawTeam {
   } as RawTeam;
 }
 
-async function fetchSheetPayload(): Promise<any | null> {
+async function readSheetFromWebhook(): Promise<any | null> {
   const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
   if (!webhookUrl) {
     console.error("Google Sheets read error: GOOGLE_SHEETS_WEBHOOK_URL is not configured");
@@ -106,7 +113,7 @@ async function fetchSheetPayload(): Promise<any | null> {
 
   let lastError: unknown = null;
 
-  for (let attempt = 1; attempt <= SHEET_RETRIES; attempt += 1) {
+  for (let attempt = 1; attempt <= SHEET_RETRIES + 1; attempt += 1) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), SHEET_TIMEOUT_MS);
 
@@ -131,17 +138,35 @@ async function fetchSheetPayload(): Promise<any | null> {
         throw new Error(String(payload?.message || "Google Apps Script returned an unsuccessful response"));
       }
 
+      setCachedSheetPayload(payload);
       return payload;
     } catch (error) {
       lastError = error;
-      if (attempt < SHEET_RETRIES) await new Promise((resolve) => setTimeout(resolve, 350 * attempt));
+      if (attempt <= SHEET_RETRIES) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
     } finally {
       clearTimeout(timeout);
     }
   }
 
   console.error("Google Sheets read error after retries:", lastError);
-  return null;
+
+  // A transient Apps Script timeout must not blank the public site if this
+  // server instance has a previously successful live snapshot available.
+  return getLastSheetPayload();
+}
+
+async function fetchSheetPayload(): Promise<any | null> {
+  const cached = getCachedSheetPayload();
+  if (cached) return cached;
+
+  const existingRequest = getSheetReadInFlight();
+  if (existingRequest) return existingRequest;
+
+  const request = readSheetFromWebhook().finally(() => setSheetReadInFlight(null));
+  setSheetReadInFlight(request);
+  return request;
 }
 
 export async function getRegisteredTeams(): Promise<RawTeam[]> {
