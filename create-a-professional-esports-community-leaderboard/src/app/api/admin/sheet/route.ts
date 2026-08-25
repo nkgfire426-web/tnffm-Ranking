@@ -17,10 +17,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, message: "Google Sheets is not configured. Add GOOGLE_SHEETS_WEBHOOK_URL in Vercel." }, { status: 503 });
     }
 
-    const response = await fetch(webhookUrl, {
+    const url = new URL(webhookUrl);
+    url.searchParams.set("_tnffm_admin_read", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
+    const response = await fetch(url.toString(), {
       method: "GET",
       cache: "no-store",
-      headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0" }
+      headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0", Pragma: "no-cache" }
     });
 
     const result = await response.json().catch(() => null);
@@ -34,29 +37,27 @@ export async function GET(request: NextRequest) {
     }
 
     if (result.ok === false) {
-      const scriptMessage =
-        typeof result.message === "string" && result.message.trim()
-          ? result.message.trim()
-          : typeof result.error === "string" && result.error.trim()
-            ? result.error.trim()
-            : "The Apps Script reported an application error.";
+      const scriptMessage = typeof result.message === "string" && result.message.trim()
+        ? result.message.trim()
+        : typeof result.error === "string" && result.error.trim()
+          ? result.error.trim()
+          : "The Apps Script reported an application error.";
       return NextResponse.json({ ok: false, message: `Google Apps Script error (HTTP 200): ${scriptMessage}` }, { status: 502 });
     }
 
-    // Return every live Sheet section used by the admin dashboard. In
-    // particular, Community Rankings must never be omitted: the admin must
-    // be able to load, edit, save and publish the exact ranking data that the
-    // public ranking pages consume.
     return NextResponse.json(
       {
         ok: true,
         teams: Array.isArray(result.teams) ? result.teams : [],
         rankings: Array.isArray(result.rankings) ? result.rankings : [],
         events: Array.isArray(result.events) ? result.events : [],
+        rankingResults: Array.isArray(result.rankingResults) ? result.rankingResults : Array.isArray(result.results) ? result.results : [],
+        results: Array.isArray(result.results) ? result.results : Array.isArray(result.rankingResults) ? result.rankingResults : [],
         collaborators: Array.isArray(result.collaborators) ? result.collaborators : [],
-        news: Array.isArray(result.news) ? result.news : []
+        news: Array.isArray(result.news) ? result.news : [],
+        serverTime: typeof result.serverTime === "string" ? result.serverTime : new Date().toISOString()
       },
-      { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0" } }
+      { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0", Pragma: "no-cache" } }
     );
   } catch (error) {
     console.error("Admin Google Sheets read error:", error);
