@@ -19,7 +19,6 @@ function normalizeTeams(items: unknown[]) {
   return items.map(x => {
     const t = { ...(x as any) };
     t.communityPoints = points(t);
-    t.eventsPlayed = num(t.eventsPlayed) || num(t.championships) + num(t.runnerUp) + num(t.secondRunnerUp) + num(t.top5Finishes) + num(t.finalistFinishes || t.grandFinals) + num(t.officialMatchFinalists);
     return t;
   });
 }
@@ -87,20 +86,44 @@ function rankingResults(events: any[]) {
   return rows;
 }
 
-function validatePublishedEvents(events: any[]) {
+function validatePublishedEvents(events: any[], teams: any[]) {
+  const registered = new Set(
+    teams.map((t: any) => String(t.teamName ?? "").trim().toLowerCase()).filter(Boolean)
+  );
+
   for (const event of events) {
     if (!bool(event.published)) continue;
+
+    const name = String(event.name || "Event").trim() || "Event";
     const results = Array.isArray(event.results) ? event.results : [];
-    if (!results.length) throw new Error(`${event.name || "Event"}: cannot publish without results.`);
-    if (num(event.matchesPlayed) <= 0) throw new Error(`${event.name || "Event"}: Matches Played must be greater than 0.`);
+
+    if (!results.length) throw new Error(`${name}: cannot publish without results.`);
+    if (num(event.matchesPlayed) <= 0) throw new Error(`${name}: Matches Played must be greater than 0.`);
+
     const prize = Number(String(event.prize ?? "").replace(/[^0-9.]/g, "")) || 0;
     const official = String(event.status ?? "").toLowerCase() === "official" || String(event.prize ?? "").toLowerCase().includes("official");
-    if (!official && prize <= 1000) throw new Error(`${event.name || "Event"}: prize pool must be above Rs.1000 before publishing.`);
+    if (!official && prize <= 1000) throw new Error(`${name}: prize pool must be above Rs.1000 before publishing.`);
+
+    const expectedTeams = num(event.teams);
+    if (expectedTeams > 0 && results.length !== expectedTeams) {
+      throw new Error(`${name}: expected ${expectedTeams} results, but ${results.length} were entered. Complete the results before publishing.`);
+    }
+
     const names = results.map((r: any) => String(r.teamName || "").trim().toLowerCase()).filter(Boolean);
-    if (new Set(names).size !== names.length) throw new Error(`${event.name || "Event"}: duplicate teams are not allowed.`);
-    const ranks = results.map((r: any) => num(r.rank)).filter(Boolean);
-    if (ranks.some((r: number) => r < 1 || r > 18)) throw new Error(`${event.name || "Event"}: ranks must be between 1 and 18.`);
-    if (new Set(ranks).size !== ranks.length) throw new Error(`${event.name || "Event"}: duplicate ranks are not allowed.`);
+    if (names.length !== results.length) throw new Error(`${name}: every result must have a team name.`);
+    if (new Set(names).size !== names.length) throw new Error(`${name}: duplicate teams are not allowed.`);
+
+    const ranks = results.map((r: any) => num(r.rank));
+    if (ranks.some((r: number) => r < 1 || r > 18)) throw new Error(`${name}: ranks must be between 1 and 18.`);
+    if (new Set(ranks).size !== ranks.length) throw new Error(`${name}: duplicate ranks are not allowed.`);
+
+    const sortedRanks = [...ranks].sort((a, b) => a - b);
+    sortedRanks.forEach((rank, index) => {
+      if (rank !== index + 1) throw new Error(`${name}: ranks must be continuous starting at 1. Missing rank ${index + 1}.`);
+    });
+
+    const unregistered = names.filter(team => !registered.has(team));
+    if (unregistered.length) throw new Error(`${name}: ${unregistered.join(", ")} is not registered in the Teams sheet.`);
   }
 }
 
@@ -151,17 +174,21 @@ export async function POST(request: NextRequest) {
 
     if (hasEvents) {
       data.events = cleanEvents(p.events);
-      validatePublishedEvents(data.events);
+      validatePublishedEvents(data.events, data.teams || []);
+
+      // Store every result for the admin/audit trail, but only published events
+      // are allowed to influence the public Community Ranking.
       data.rankingResults = rankingResults(data.events);
       data.results = data.rankingResults;
 
-      // The ranking is ALWAYS rebuilt from the published event results.
-      // Community Rankings is therefore an output, not a competing source of truth.
-      if (hasTeams) {
-        data.rankings = rankTeams(data.teams as any, data.events as any).map((t: any) => ({
+      const publishedEvents = data.events.filter((e: any) => bool(e.published));
+      if (hasTeams && publishedEvents.length) {
+        data.rankings = rankTeams(data.teams as any, publishedEvents as any).map((t: any) => ({
           ...t,
           teamId: t.teamId || data.teams.find((x: any) => String(x.teamName).trim().toLowerCase() === String(t.teamName).trim().toLowerCase())?.teamId || ""
         }));
+      } else if (hasTeams) {
+        data.rankings = [];
       }
     }
 
@@ -199,10 +226,11 @@ export async function POST(request: NextRequest) {
 
     const publishedEvents = hasEvents ? data.events.filter((e: any) => bool(e.published)) : [];
     const publishedResults = hasEvents ? data.rankingResults.filter((r: any) => bool(r.published)) : [];
+    const publishedRanking = Array.isArray(data.rankings) ? data.rankings : [];
 
     return NextResponse.json({
       ok: true,
-      published: true,
+      published: hasEvents,
       googleSheets: true,
       verified: true,
       rankingDetailsSaved: hasEvents,
@@ -210,9 +238,10 @@ export async function POST(request: NextRequest) {
       eventResultsCount: savedResults.length,
       publishedEventCount: publishedEvents.length,
       publishedResultCount: publishedResults.length,
-      publishedAt: new Date().toISOString(),
+      rankingTeamCount: publishedRanking.length,
+      publishedAt: hasEvents ? new Date().toISOString() : null,
       message: hasEvents
-        ? `Ranking published successfully. ${publishedResults.length} published result${publishedResults.length === 1 ? "" : "s"} verified and Community Rankings rebuilt.`
+        ? `Published successfully. ${publishedResults.length} result${publishedResults.length === 1 ? "" : "s"} verified, ${publishedRanking.length} community ranking team${publishedRanking.length === 1 ? "" : "s"} rebuilt, and public pages revalidated.`
         : "Changes saved and verified successfully."
     });
   } catch (error) {
