@@ -15,6 +15,14 @@ import type { RankedTeam, RawTeam } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+function hasText(value: unknown) {
+  return typeof value === "string" ? value.trim().length > 0 : value != null;
+}
+
+function hasRoster(value: unknown) {
+  return Array.isArray(value) && value.length > 0;
+}
+
 function mergeLiveTeamDetails(rankedTeams: RankedTeam[], registeredTeams: RawTeam[]): RankedTeam[] {
   const byId = new Map<string, RawTeam>();
   const byName = new Map<string, RawTeam>();
@@ -32,15 +40,16 @@ function mergeLiveTeamDetails(rankedTeams: RankedTeam[], registeredTeams: RawTea
     const live = (id && byId.get(id)) || byName.get(name);
     if (!live) return ranked;
 
-    // Published ranking values stay authoritative for rank/score fields.
-    // Team profile fields come from the live Teams data so an incomplete
-    // ranking row cannot hide a valid logo/banner/roster/description.
-    const result = { ...live, ...ranked } as RankedTeam;
+    // Ranking fields remain authoritative: rank, community score, placement
+    // counts and other published ranking values always come from the Rankings
+    // sheet. Profile fields, however, must come from the current Teams/Rosters
+    // data whenever that live record actually has a value. The old logic only
+    // filled truly empty fields, which meant normalized defaults such as players
+    // = 0 or status = Active could incorrectly hide good live Sheet details.
+    const result = { ...ranked } as RankedTeam;
     const profileFields = [
       "logoUrl",
       "bannerUrl",
-      "roster",
-      "players",
       "status",
       "registrationStatus",
       "description",
@@ -49,13 +58,16 @@ function mergeLiveTeamDetails(rankedTeams: RankedTeam[], registeredTeams: RawTea
     ] as const;
 
     for (const field of profileFields) {
-      const rankedValue = (ranked as any)[field];
       const liveValue = (live as any)[field];
-      const rankedEmpty =
-        rankedValue == null ||
-        (typeof rankedValue === "string" && rankedValue.trim() === "") ||
-        (Array.isArray(rankedValue) && rankedValue.length === 0);
-      if (rankedEmpty && liveValue != null) (result as any)[field] = liveValue;
+      if (hasText(liveValue)) (result as any)[field] = liveValue;
+    }
+
+    const liveRoster = (live as any).roster;
+    if (hasRoster(liveRoster)) {
+      (result as any).roster = liveRoster;
+      (result as any).players = Number((live as any).players) || liveRoster.length;
+    } else if (Number((live as any).players) > 0) {
+      (result as any).players = Number((live as any).players);
     }
 
     return result;
