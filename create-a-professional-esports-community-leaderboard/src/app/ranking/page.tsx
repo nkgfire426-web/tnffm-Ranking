@@ -1,13 +1,13 @@
 import { Header } from "@/components/Header";
 import { LeaderboardTable } from "@/components/LeaderboardTable";
 import { Podium } from "@/components/Podium";
-import { getRankedTeams } from "@/lib/google-sheets";
+import { getUnifiedTeamData } from "@/lib/site-data";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function RankingPage() {
-  const teams = await getRankedTeams();
+  const teams = await getUnifiedTeamData();
 
   return (
     <main className="min-h-screen bg-[#050507] text-white">
@@ -17,7 +17,7 @@ export default async function RankingPage() {
           <p className="text-xs font-bold uppercase tracking-[0.28em] text-gold">TNFFM Official Ranking</p>
           <h1 className="mt-2 font-rajdhani text-4xl font-black uppercase sm:text-6xl">Community Ranking</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
-            Only results recognized through official TNFFM collaborator events contribute to the competitive ranking. Team registration and the community showcase are separate from ranking points.
+            Published ranking values come from the official Community Rankings sheet. Current team profile details come from the registered-team sheet.
           </p>
         </div>
 
