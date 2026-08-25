@@ -17,7 +17,6 @@ function mergeProfile(ranking: RankedTeam, profile?: RawTeam): RankedTeam {
     registrationStatus: (profile as any).registrationStatus || ranking.registrationStatus,
     description: (profile as any).description || ranking.description,
     mobileNumber: (profile as any).mobileNumber || ranking.mobileNumber,
-    // Keep the published ranking identity/slug/name and ranking timestamp intact.
     teamName: ranking.teamName,
     slug: ranking.slug || (profile as any).slug || slugify(ranking.teamName),
     lastUpdated: String((ranking as any).lastUpdated ?? (profile as any).lastUpdated ?? ""),
