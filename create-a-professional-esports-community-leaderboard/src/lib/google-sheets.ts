@@ -21,8 +21,13 @@ export type TournamentNews = {
   link?: string;
 };
 
-const SHEET_TIMEOUT_MS = 6000;
-const SHEET_RETRIES = 1;
+// Google Apps Script can legitimately need several seconds when it reads and
+// normalizes all canonical TNFFM tabs. The old 6s timeout caused live pages to
+// abort and render an empty ranking even though the Sheet itself was healthy.
+// Use one bounded attempt instead of two 6s attempts so a slow Sheet cannot
+// double the page wait while still allowing the live source enough time.
+const SHEET_TIMEOUT_MS = 9000;
+const SHEET_RETRIES = 0;
 
 function asNumber(value: unknown, fallback = 0) {
   const n = Number(value);
@@ -111,50 +116,38 @@ async function readSheetFromWebhook(): Promise<any | null> {
     return null;
   }
 
-  let lastError: unknown = null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SHEET_TIMEOUT_MS);
 
-  for (let attempt = 1; attempt <= SHEET_RETRIES + 1; attempt += 1) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), SHEET_TIMEOUT_MS);
+  try {
+    const url = new URL(webhookUrl);
+    url.searchParams.set("_tnffm_read", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
-    try {
-      const url = new URL(webhookUrl);
-      url.searchParams.set("_tnffm_read", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Cache-Control": "no-cache, no-store, max-age=0",
+        Pragma: "no-cache",
+      },
+      signal: controller.signal,
+    });
 
-      const response = await fetch(url.toString(), {
-        method: "GET",
-        cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          "Cache-Control": "no-cache, no-store, max-age=0",
-          Pragma: "no-cache",
-        },
-        signal: controller.signal,
-      });
-
-      if (!response.ok) throw new Error(`Google Apps Script returned HTTP ${response.status}`);
-      const payload = await response.json();
-      if (!payload || payload.ok === false) {
-        throw new Error(String(payload?.message || "Google Apps Script returned an unsuccessful response"));
-      }
-
-      setCachedSheetPayload(payload);
-      return payload;
-    } catch (error) {
-      lastError = error;
-      if (attempt <= SHEET_RETRIES) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
-      }
-    } finally {
-      clearTimeout(timeout);
+    if (!response.ok) throw new Error(`Google Apps Script returned HTTP ${response.status}`);
+    const payload = await response.json();
+    if (!payload || payload.ok === false) {
+      throw new Error(String(payload?.message || "Google Apps Script returned an unsuccessful response"));
     }
+
+    setCachedSheetPayload(payload);
+    return payload;
+  } catch (error) {
+    console.error("Google Sheets read error after timeout:", error);
+    return getLastSheetPayload();
+  } finally {
+    clearTimeout(timeout);
   }
-
-  console.error("Google Sheets read error after retries:", lastError);
-
-  // A transient Apps Script timeout must not blank the public site if this
-  // server instance has a previously successful live snapshot available.
-  return getLastSheetPayload();
 }
 
 async function fetchSheetPayload(): Promise<any | null> {
@@ -265,7 +258,6 @@ export async function getRankedTeams(): Promise<RankedTeam[]> {
     return rankTeams(teams, events);
   } catch (error) {
     console.error("Ranking data error:", error);
-    // Critical: never show demo/fake rankings when the live source fails.
     return [];
   }
 }
