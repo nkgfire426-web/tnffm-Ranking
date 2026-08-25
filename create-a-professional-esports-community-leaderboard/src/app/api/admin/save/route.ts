@@ -56,14 +56,12 @@ function cleanRoster(value: unknown): Array<{name: string; uid: string; role: st
   let roster: unknown = value;
   if (typeof roster === "string") { try { roster = JSON.parse(roster); } catch { roster = []; } }
   if (!Array.isArray(roster)) return [];
-  return roster
-    .map((p) => ({
-      name: String((p as any)?.name ?? "").trim(),
-      uid: String((p as any)?.uid ?? "").trim(),
-      role: String((p as any)?.role ?? "").trim(),
-      playerLogoUrl: String((p as any)?.playerLogoUrl ?? (p as any)?.playerLogo ?? "").trim()
-    }))
-    .filter((p) => p.name || p.uid || p.role || p.playerLogoUrl);
+  return roster.map((p) => ({
+    name: String((p as any)?.name ?? "").trim(),
+    uid: String((p as any)?.uid ?? "").trim(),
+    role: String((p as any)?.role ?? "").trim(),
+    playerLogoUrl: String((p as any)?.playerLogoUrl ?? (p as any)?.playerLogo ?? "").trim()
+  })).filter((p) => p.name || p.uid || p.role || p.playerLogoUrl);
 }
 function comparableTeam(team: unknown) {
   const t = { ...(team as Record<string, unknown>) };
@@ -103,9 +101,7 @@ function normalizeBool(value: unknown): string {
 }
 function normalizeResults(value: unknown): unknown[] {
   let parsed = value;
-  if (typeof parsed === "string") {
-    try { parsed = JSON.parse(parsed); } catch { parsed = []; }
-  }
+  if (typeof parsed === "string") { try { parsed = JSON.parse(parsed); } catch { parsed = []; } }
   if (!Array.isArray(parsed)) return [];
   return parsed.map((r: any) => ({
     resultId: (() => { const id = String(r?.resultId ?? r?.id ?? "").trim(); return /^RES-\d{6}$/i.test(id) ? "" : id; })(),
@@ -138,68 +134,65 @@ function comparableEvent(event: unknown): string {
     results: normalizeResults(e.results)
   });
 }
-function comparableEventList(items: unknown[]): string[] {
-  return items.map(comparableEvent).sort();
-}
+function comparableEventList(items: unknown[]): string[] { return items.map(comparableEvent).sort(); }
 
-function comparableGeneric(value: unknown): string {
-  if (Array.isArray(value)) return JSON.stringify(value.map(comparableGeneric).sort());
-  if (value && typeof value === "object") {
-    const o = value as Record<string, unknown>;
-    const r: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(o)) if (key !== "lastUpdated" && key !== "LastUpdated") r[key] = JSON.parse(comparableGeneric(item));
-    return JSON.stringify(r);
+// Google Apps Script intentionally returns both the original Sheet header and
+// its canonical camelCase alias. For generic sections we compare only the
+// fields the admin actually submitted, ignoring generated timestamps and
+// duplicate header aliases. This prevents a successful News/Collaborator
+// add/edit/delete from being incorrectly reported as a failed save.
+const GENERIC_ALIASES: Record<string, string> = {
+  "Title": "title", "Description": "description", "Type": "type", "ImageURL": "imageUrl", "Link": "link",
+  "Name": "name", "Role": "role", "Logo URL": "logoUrl", "URL": "url", "Url": "url",
+  "Published": "published", "Status": "status", "Date": "date", "ID": "id", "Id": "id"
+};
+function canonicalGenericKey(key: string): string { return GENERIC_ALIASES[key] || key; }
+function canonicalGeneric(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalGeneric);
+  if (!value || typeof value !== "object") return value ?? "";
+  const source = value as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [rawKey, rawValue] of Object.entries(source)) {
+    const key = canonicalGenericKey(rawKey);
+    if (key === "lastUpdated" || key === "LastUpdated") continue;
+    // Prefer the already-canonical key when Apps Script returns both forms.
+    if (Object.prototype.hasOwnProperty.call(out, key) && rawKey !== key) continue;
+    out[key] = canonicalGeneric(rawValue);
   }
-  return JSON.stringify(value ?? "");
+  return Object.fromEntries(Object.entries(out).sort(([a], [b]) => a.localeCompare(b)));
 }
-function verifyRankings(expected: unknown[] | undefined, actual: unknown[]) {
-  if (!Array.isArray(expected)) return;
-  const actualItems = Array.isArray(actual) ? actual : [];
-  const key = (r: any) => [
-    String(r.teamId ?? "").trim(),
-    String(r.teamName ?? "").trim().toLowerCase(),
-    Number(r.rank ?? 0),
-    Number(r.communityScore ?? r.communityPoints ?? 0),
-    Number(r.championships ?? 0),
-    Number(r.runnerUp ?? 0),
-    Number(r.secondRunnerUp ?? 0),
-    Number(r.top5Finishes ?? 0)
-  ].join("|");
-  const expectedSet = new Set(expected.map(key));
-  const actualSet = new Set(actualItems.map(key));
-  if (expectedSet.size !== actualSet.size || expectedSet.size !== expected.length || expectedSet.size !== actualItems.length) {
-    throw new Error("Community Rankings were written but the Google Sheets read-back does not match. Please retry the save.");
-  }
-  for (const item of expectedSet) {
-    if (!actualSet.has(item)) throw new Error("Community Rankings were written but the Google Sheets read-back does not match. Please retry the save.");
-  }
-}
-
+function comparableGeneric(value: unknown): string { return JSON.stringify(canonicalGeneric(value)); }
 function verifyGenericSection(expected: unknown[] | undefined, actual: unknown, section: string) {
   if (!Array.isArray(expected)) return;
   const actualItems = Array.isArray(actual) ? actual : [];
   if (expected.length !== actualItems.length) throw new Error(`${section} was not verified after saving. Expected ${expected.length} records but Google Sheets returned ${actualItems.length}.`);
   const expectedSet = new Set(expected.map(comparableGeneric));
   const actualSet = new Set(actualItems.map(comparableGeneric));
+  if (expectedSet.size !== actualSet.size) throw new Error(`${section} was written but the Google Sheets read-back contains duplicate or mismatched records. Please retry the save.`);
   for (const item of expectedSet) if (!actualSet.has(item)) throw new Error(`${section} was written but the Google Sheets read-back does not match. Please retry the save.`);
+}
+function verifyRankings(expected: unknown[] | undefined, actual: unknown[]) {
+  if (!Array.isArray(expected)) return;
+  const actualItems = Array.isArray(actual) ? actual : [];
+  const key = (r: any) => [
+    String(r.teamId ?? "").trim(), String(r.teamName ?? "").trim().toLowerCase(), Number(r.rank ?? 0),
+    Number(r.communityScore ?? r.communityPoints ?? 0), Number(r.championships ?? 0), Number(r.runnerUp ?? 0),
+    Number(r.secondRunnerUp ?? 0), Number(r.top5Finishes ?? 0)
+  ].join("|");
+  const expectedSet = new Set(expected.map(key));
+  const actualSet = new Set(actualItems.map(key));
+  if (expectedSet.size !== actualSet.size || expectedSet.size !== expected.length || expectedSet.size !== actualItems.length) throw new Error("Community Rankings were written but the Google Sheets read-back does not match. Please retry the save.");
+  for (const item of expectedSet) if (!actualSet.has(item)) throw new Error("Community Rankings were written but the Google Sheets read-back does not match. Please retry the save.");
 }
 async function verifyGoogleSheetsSave(webhookUrl: string, data: Record<string, unknown>, hasTeams: boolean, hasEvents: boolean, hasCollaborators: boolean, hasNews: boolean, hasRankings: boolean) {
   const saved = await readBackGoogleSheets(webhookUrl);
   if (hasTeams) verifySavedTeams(data.teams as unknown[], saved?.teams);
-  // Apps Script normalizes event field names/types and generates timestamps.
-  // Compare the stable event fields only, rather than the raw frontend objects.
   if (hasEvents) {
     const expectedEvents = comparableEventList(data.events as unknown[]);
     const actualEvents = comparableEventList(Array.isArray(saved?.events) ? saved.events : []);
-    if (expectedEvents.length !== actualEvents.length) {
-      throw new Error(`Events were written but Google Sheets returned ${actualEvents.length} events instead of ${expectedEvents.length}. Please retry the save.`);
-    }
+    if (expectedEvents.length !== actualEvents.length) throw new Error(`Events were written but Google Sheets returned ${actualEvents.length} events instead of ${expectedEvents.length}. Please retry the save.`);
     const actualEventSet = new Set(actualEvents);
-    for (const item of expectedEvents) {
-      if (!actualEventSet.has(item)) {
-        throw new Error("Events were written but the Google Sheets read-back does not match. Please retry the save.");
-      }
-    }
+    for (const item of expectedEvents) if (!actualEventSet.has(item)) throw new Error("Events were written but the Google Sheets read-back does not match. Please retry the save.");
   }
   if (hasRankings) verifyRankings(data.rankings as unknown[], saved?.rankings || []);
   if (hasCollaborators) verifyGenericSection(data.collaborators as unknown[], saved?.collaborators, "Collaborators");
@@ -222,17 +215,10 @@ export async function POST(request: NextRequest) {
     if (hasEvents) {
       data.events = payload.events!;
       if (hasTeams && !hasRankings) {
-        // Calculate the dedicated ranking sheet from the same published
-        // event results used by the public leaderboard.
         const ranked = rankTeams(normalizedTeams as any, payload.events as any);
         data.rankings = ranked.map((team: any) => {
-          const matchedTeam = normalizedTeams.find((t: any) =>
-            String(t.teamName || "").trim().toLowerCase() === String(team.teamName || "").trim().toLowerCase()
-          );
-          return {
-            ...team,
-            teamId: (team as any).teamId || (matchedTeam as any)?.teamId || ""
-          };
+          const matchedTeam = normalizedTeams.find((t: any) => String(t.teamName || "").trim().toLowerCase() === String(team.teamName || "").trim().toLowerCase());
+          return { ...team, teamId: (team as any).teamId || (matchedTeam as any)?.teamId || "" };
         });
       }
     }
@@ -243,17 +229,10 @@ export async function POST(request: NextRequest) {
     const result = await response.json().catch(() => ({}));
     if (!response.ok || result.ok === false) return NextResponse.json({ ok: false, message: result.message || "Google Sheet update failed." }, { status: 502 });
     await verifyGoogleSheetsSave(webhookUrl, data, hasTeams, hasEvents, hasCollaborators, hasNews, hasRankings || Array.isArray(data.rankings));
-    // Invalidate the shared Google Sheets Data Cache immediately so the public
-    // homepage/ranking pages never remain on the pre-save snapshot.
     revalidateTag("tnffm-sheet");
-    revalidatePath("/");
-    revalidatePath("/ranking");
-    revalidatePath("/teams");
-    revalidatePath("/tracked-events");
-    revalidatePath("/admin");
-    revalidatePath("/admin/news");
-    revalidatePath("/collaborators");
-    return NextResponse.json({ ok: true, googleSheets: true, verified: true, logosPersisted: true, rankingsCalculated: true, message: "Saved to Google Sheets and verified successfully." });
+    revalidatePath("/"); revalidatePath("/ranking"); revalidatePath("/teams"); revalidatePath("/tracked-events");
+    revalidatePath("/admin"); revalidatePath("/admin/news"); revalidatePath("/collaborators");
+    return NextResponse.json({ ok: true, googleSheets: true, verified: true, logosPersisted: true, rankingsCalculated: Array.isArray(data.rankings), message: "Saved to Google Sheets and verified successfully." });
   } catch (error) {
     console.error("Google Sheets save/verification error:", error);
     return NextResponse.json({ ok: false, verified: false, message: error instanceof Error ? error.message : "Unable to update and verify Google Sheet." }, { status: 502 });
