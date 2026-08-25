@@ -112,6 +112,8 @@ export function CommunityAdminDashboard({ initialTeams, initialEvents, initialCo
       const names = event.results.filter((r) => r.teamName.trim()).map((r) => r.teamName.trim().toLowerCase());
       if (new Set(names).size !== names.length) return `${event.name}: the same team cannot appear twice.`;
       if (event.results.some((r) => r.rank < 1 || r.rank > 18)) return `${event.name}: rank must be between 1 and 18.`;
+      const ranks = event.results.filter((r) => r.teamName.trim()).map((r) => Number(r.rank));
+      if (new Set(ranks).size !== ranks.length) return `${event.name}: each team must have a unique rank.`;
     }
     return "";
   }
@@ -121,12 +123,20 @@ export function CommunityAdminDashboard({ initialTeams, initialEvents, initialCo
     if (validationError) { setStatus(validationError); return; }
     setSaving(true); setStatus("Saving ranking, teams and events...");
     try {
-      const cleanedEvents = events.map((event) => ({ ...event, matchesPlayed: Math.max(0, Number(event.matchesPlayed) || 0), results: (event.results || []).filter((result) => result.teamName.trim()).map((result, index) => normalizeResult({ ...result, rank: index + 1 }, Number(event.matchesPlayed) || 0)) }));
+      // IMPORTANT: preserve the Rank entered in the Official Ranking tab.
+      // The old code replaced every rank with the row index during save.
+      const cleanedEvents = events.map((event) => ({
+        ...event,
+        matchesPlayed: Math.max(0, Number(event.matchesPlayed) || 0),
+        results: (event.results || [])
+          .filter((result) => result.teamName.trim())
+          .map((result) => normalizeResult({ ...result }, Number(event.matchesPlayed) || 0))
+      }));
       const response = await fetch("/api/admin/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password, teams, events: cleanedEvents, collaborators: collaborators.filter((item) => item.name || item.role || item.logoUrl || item.url) }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || body.ok === false) throw new Error(body.message || `Save failed (${response.status}).`);
       setEvents(cleanedEvents);
-      setStatus("✓ Saved. Published results are now the official live ranking source.");
+      setStatus("✓ Saved. Ranking details were written to Google Sheets and verified.");
       await refresh(false);
     } catch (error) { setStatus(error instanceof Error ? error.message : "Save failed."); }
     finally { setSaving(false); }
