@@ -53,7 +53,7 @@ export async function getUnifiedTeamData(): Promise<RankedTeam[]> {
 /** Public team profiles: every registered team, with published ranking data added when available. */
 export async function getPublicTeamData(): Promise<RankedTeam[]> {
   const [ranked, registered] = await Promise.all([getRankedTeams(), getRegisteredTeams()]);
-  const { byId: profileById, byName: profileByName } = buildProfileMaps(registered);
+  const { byId, byName } = buildProfileMaps(registered);
   const rankedById = new Map<string, RankedTeam>();
   const rankedByName = new Map<string, RankedTeam>();
   for (const ranking of ranked) {
