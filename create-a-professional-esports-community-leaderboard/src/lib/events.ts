@@ -1,5 +1,3 @@
-import { readFile } from "fs/promises";
-import path from "path";
 import {
   getCachedSheetPayload,
   getLastSheetPayload,
@@ -34,19 +32,12 @@ export type TrackedEvent = {
   results?: EventResult[];
 };
 
-export const sampleEvents: TrackedEvent[] = [
-  { name: "TNFFM Summer Clash Grand Finals", organizer: "TNFFM Verified", teams: 24, prize: "Rs.1500", status: "Verified", counted: "Finale Results", date: "2026-06-22", notes: "Full map event with public final standings." },
-  { name: "South Zone Free Fire MAX League", organizer: "Approved Organizer", teams: 36, prize: "Rs.3000", status: "Verified", counted: "Grand Finals", date: "2026-07-06", notes: "Eligible grand finals results counted." },
-  { name: "Tamil Nadu Elite Cup", organizer: "Approved Organizer", teams: 30, prize: "Rs.2000", status: "Verified", counted: "Grand Finals", date: "2026-07-20", notes: "Minimum team and prize rules satisfied." },
-  { name: "Official Free Fire MAX Qualifier", organizer: "Official Match", teams: 48, prize: "Official", status: "Official", counted: "Finalist Bonus", date: "2026-08-01", notes: "Official finalist bonus applied." }
-];
-
 function parseResults(value: unknown): EventResult[] {
   if (Array.isArray(value)) return value as EventResult[];
   if (typeof value !== "string" || !value.trim()) return [];
   try {
     const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed as EventResult[] : [];
+    return Array.isArray(parsed) ? (parsed as EventResult[]) : [];
   } catch {
     return [];
   }
@@ -65,23 +56,25 @@ function asBoolean(value: unknown) {
 
 function normalizeEvent(event: Record<string, unknown>): TrackedEvent {
   const matches = Math.max(0, Math.floor(asNumber(event.matchesPlayed ?? event.MatchesPlayed, 0)));
-  const results = parseResults(event.results ?? event.Results).map((r) => {
-    const kills = Math.max(0, Math.floor(asNumber(r.kills, 0)));
-    const booyahs = Math.max(0, Math.floor(asNumber(r.booyahs, 0)));
-    const positionPoints = Math.max(0, asNumber(r.positionPoints, 0));
-    const rank = Math.max(1, Math.floor(asNumber(r.rank, 1)));
-    return {
-      teamName: String(r.teamName ?? "").trim(),
-      ...(r.teamSlug ? { teamSlug: String(r.teamSlug).trim() } : {}),
-      rank,
-      positionPoints,
-      kills,
-      booyahs,
-      killRatio: matches > 0 ? kills / matches : 0,
-      booyahRatio: matches > 0 ? (booyahs / matches) * 100 : 0,
-      total: positionPoints + kills
-    };
-  }).filter((r) => r.teamName);
+  const results = parseResults(event.results ?? event.Results)
+    .map((r) => {
+      const kills = Math.max(0, Math.floor(asNumber(r.kills, 0)));
+      const booyahs = Math.max(0, Math.floor(asNumber(r.booyahs, 0)));
+      const positionPoints = Math.max(0, asNumber(r.positionPoints, 0));
+      const rank = Math.max(1, Math.floor(asNumber(r.rank, 1)));
+      return {
+        teamName: String(r.teamName ?? "").trim(),
+        ...(r.teamSlug ? { teamSlug: String(r.teamSlug).trim() } : {}),
+        rank,
+        positionPoints,
+        kills,
+        booyahs,
+        killRatio: matches > 0 ? kills / matches : 0,
+        booyahRatio: matches > 0 ? (booyahs / matches) * 100 : 0,
+        total: positionPoints + kills,
+      };
+    })
+    .filter((r) => r.teamName);
 
   return {
     name: String(event.name ?? event.Name ?? "").trim(),
@@ -91,35 +84,42 @@ function normalizeEvent(event: Record<string, unknown>): TrackedEvent {
     status: String(event.status ?? event.Status ?? "Pending") as TrackedEvent["status"],
     counted: String(event.counted ?? event.Counted ?? "").trim(),
     date: String(event.date ?? event.Date ?? "").trim(),
-    ...(event.notes != null || event.Notes != null ? { notes: String(event.notes ?? event.Notes ?? "") } : {}),
+    ...(event.notes != null || event.Notes != null
+      ? { notes: String(event.notes ?? event.Notes ?? "") }
+      : {}),
     matchesPlayed: matches,
     published: asBoolean(event.published ?? event.Published),
-    results
+    results,
   };
+}
+
+function normalizeEvents(payload: any): TrackedEvent[] | null {
+  if (!payload || !Array.isArray(payload.events)) return null;
+  return payload.events
+    .map((event: Record<string, unknown>) => normalizeEvent(event))
+    .filter((event: TrackedEvent) => event.name.length > 0);
 }
 
 async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
   const cachedPayload = getCachedSheetPayload();
-  if (cachedPayload && Array.isArray(cachedPayload.events)) {
-    return cachedPayload.events
-      .map((event: Record<string, unknown>) => normalizeEvent(event))
-      .filter((event: TrackedEvent) => event.name.length > 0);
-  }
+  const cachedEvents = normalizeEvents(cachedPayload);
+  if (cachedEvents !== null) return cachedEvents;
 
+  // The canonical Google Sheets reader in google-sheets.ts owns the network
+  // request. Waiting for its in-flight request prevents a second Apps Script
+  // call from the homepage's tracked-events section.
   const existingRequest = getSheetReadInFlight();
   if (existingRequest) {
     const payload = await existingRequest;
-    if (payload && Array.isArray(payload.events)) {
-      return payload.events
-        .map((event: Record<string, unknown>) => normalizeEvent(event))
-        .filter((event: TrackedEvent) => event.name.length > 0);
-    }
-    return null;
+    return normalizeEvents(payload);
   }
 
   const rawUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
   if (!rawUrl) return null;
 
+  // This path is only a safety net for a direct getTrackedEvents() call that
+  // happens before the canonical reader starts. It still shares the same
+  // cache/in-flight state and never falls back to bundled/demo events.
   const request = (async () => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 6000);
@@ -127,16 +127,12 @@ async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
       const response = await fetch(rawUrl, {
         method: "GET",
         cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          "Cache-Control": "no-cache, no-store, max-age=0",
-          Pragma: "no-cache",
-        },
+        headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0" },
         signal: controller.signal,
       });
       if (!response.ok) return getLastSheetPayload();
       const payload = await response.json();
-      if (payload?.ok === false) return getLastSheetPayload();
+      if (!payload || payload.ok === false) return getLastSheetPayload();
       setCachedSheetPayload(payload);
       return payload;
     } catch (error) {
@@ -150,23 +146,13 @@ async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
   })().finally(() => setSheetReadInFlight(null));
 
   setSheetReadInFlight(request);
-  const payload = await request;
-  if (!payload || !Array.isArray(payload.events)) return null;
-  return payload.events
-    .map((event: Record<string, unknown>) => normalizeEvent(event))
-    .filter((event: TrackedEvent) => event.name.length > 0);
+  return normalizeEvents(await request);
 }
 
 export async function getTrackedEvents(): Promise<TrackedEvent[]> {
-  const googleEvents = await fetchEventsFromGoogleSheets();
-  if (googleEvents !== null) return googleEvents;
-  if (process.env.GOOGLE_SHEETS_WEBHOOK_URL) return [];
-  try {
-    const filePath = path.join(process.cwd(), "data", "events.json");
-    const contents = await readFile(filePath, "utf8");
-    const events = JSON.parse(contents) as Record<string, unknown>[];
-    return Array.isArray(events) ? events.map(normalizeEvent) : sampleEvents;
-  } catch {
-    return sampleEvents;
-  }
+  const events = await fetchEventsFromGoogleSheets();
+  // Public production data must come only from the live Google Sheets source.
+  // An unavailable/empty source is represented as an empty list, never sample
+  // or bundled demo content.
+  return events ?? [];
 }
