@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const bool = (v: unknown) => v === true || String(v ?? "").trim().toLowerCase() === "true";
+const text = (v: unknown) => String(v ?? "").trim();
 
 function points(t: any) {
   return num(t.championships) * 100
@@ -30,9 +31,9 @@ function cleanResult(r: any, e: any) {
   const rank = Math.max(1, num(r?.rank ?? r?.position) || 1);
   const matches = Math.max(0, num(e?.matchesPlayed));
   return {
-    resultId: String(r?.resultId ?? r?.id ?? ""),
-    teamId: String(r?.teamId ?? ""),
-    teamName: String(r?.teamName ?? r?.team ?? "").trim(),
+    resultId: text(r?.resultId ?? r?.id),
+    teamId: text(r?.teamId),
+    teamName: text(r?.teamName ?? r?.team),
     position: rank,
     rank,
     kills,
@@ -43,7 +44,7 @@ function cleanResult(r: any, e: any) {
     total: pp + kills,
     killRatio: matches ? kills / matches : 0,
     booyahRatio: matches ? (booyahs / matches) * 100 : 0,
-    proofUrl: String(r?.proofUrl ?? r?.proofURL ?? "").trim(),
+    proofUrl: text(r?.proofUrl ?? r?.proofURL),
     verified: bool(r?.verified)
   };
 }
@@ -54,7 +55,7 @@ function cleanEvents(items: unknown[]) {
     matchesPlayed: Math.max(0, num(e?.matchesPlayed)),
     published: bool(e?.published),
     results: (Array.isArray(e?.results) ? e.results : [])
-      .filter((r: any) => String(r?.teamName ?? r?.team ?? "").trim())
+      .filter((r: any) => text(r?.teamName ?? r?.team))
       .map((r: any) => cleanResult(r, e))
   }));
 }
@@ -62,13 +63,13 @@ function cleanEvents(items: unknown[]) {
 function rankingResults(events: any[]) {
   const rows: any[] = [];
   events.forEach((e, i) => (e.results || []).forEach((r: any, j: number) => rows.push({
-    resultId: String(r.resultId || `RES-${i + 1}-${j + 1}`),
-    eventId: String(e.eventId ?? e.id ?? `EVENT-${i + 1}`),
-    eventName: String(e.name ?? e.eventName ?? ""),
-    eventDate: String(e.date ?? e.eventDate ?? ""),
+    resultId: text(r.resultId) || `RES-${i + 1}-${j + 1}`,
+    eventId: text(e.eventId ?? e.id) || `EVENT-${i + 1}`,
+    eventName: text(e.name ?? e.eventName),
+    eventDate: text(e.date ?? e.eventDate),
     published: bool(e.published),
-    teamId: String(r.teamId ?? ""),
-    teamName: String(r.teamName ?? ""),
+    teamId: text(r.teamId),
+    teamName: text(r.teamName),
     position: num(r.rank ?? r.position),
     rank: num(r.rank ?? r.position),
     positionPoints: num(r.positionPoints),
@@ -79,7 +80,7 @@ function rankingResults(events: any[]) {
     total: num(r.total ?? r.totalPoints),
     killRatio: num(r.killRatio),
     booyahRatio: num(r.booyahRatio),
-    proofUrl: String(r.proofUrl ?? r.proofURL ?? ""),
+    proofUrl: text(r.proofUrl ?? r.proofURL),
     verified: bool(r.verified),
     resultOrder: j + 1
   })));
@@ -87,41 +88,25 @@ function rankingResults(events: any[]) {
 }
 
 function validatePublishedEvents(events: any[], teams: any[]) {
-  const registered = new Set(
-    teams.map((t: any) => String(t.teamName ?? "").trim().toLowerCase()).filter(Boolean)
-  );
-
+  const registered = new Set(teams.map((t: any) => text(t.teamName).toLowerCase()).filter(Boolean));
   for (const event of events) {
     if (!bool(event.published)) continue;
-
-    const name = String(event.name || "Event").trim() || "Event";
+    const name = text(event.name) || "Event";
     const results = Array.isArray(event.results) ? event.results : [];
-
     if (!results.length) throw new Error(`${name}: cannot publish without results.`);
     if (num(event.matchesPlayed) <= 0) throw new Error(`${name}: Matches Played must be greater than 0.`);
-
     const prize = Number(String(event.prize ?? "").replace(/[^0-9.]/g, "")) || 0;
-    const official = String(event.status ?? "").toLowerCase() === "official" || String(event.prize ?? "").toLowerCase().includes("official");
+    const official = text(event.status).toLowerCase() === "official" || text(event.prize).toLowerCase().includes("official");
     if (!official && prize <= 1000) throw new Error(`${name}: prize pool must be above Rs.1000 before publishing.`);
-
     const expectedTeams = num(event.teams);
-    if (expectedTeams > 0 && results.length !== expectedTeams) {
-      throw new Error(`${name}: expected ${expectedTeams} results, but ${results.length} were entered. Complete the results before publishing.`);
-    }
-
-    const names = results.map((r: any) => String(r.teamName || "").trim().toLowerCase()).filter(Boolean);
+    if (expectedTeams > 0 && results.length !== expectedTeams) throw new Error(`${name}: expected ${expectedTeams} results, but ${results.length} were entered.`);
+    const names = results.map((r: any) => text(r.teamName).toLowerCase()).filter(Boolean);
     if (names.length !== results.length) throw new Error(`${name}: every result must have a team name.`);
     if (new Set(names).size !== names.length) throw new Error(`${name}: duplicate teams are not allowed.`);
-
     const ranks = results.map((r: any) => num(r.rank));
     if (ranks.some((r: number) => r < 1 || r > 18)) throw new Error(`${name}: ranks must be between 1 and 18.`);
     if (new Set(ranks).size !== ranks.length) throw new Error(`${name}: duplicate ranks are not allowed.`);
-
-    const sortedRanks = [...ranks].sort((a, b) => a - b);
-    sortedRanks.forEach((rank, index) => {
-      if (rank !== index + 1) throw new Error(`${name}: ranks must be continuous starting at 1. Missing rank ${index + 1}.`);
-    });
-
+    [...ranks].sort((a, b) => a - b).forEach((rank, index) => { if (rank !== index + 1) throw new Error(`${name}: ranks must be continuous starting at 1. Missing rank ${index + 1}.`); });
     const unregistered = names.filter(team => !registered.has(team));
     if (unregistered.length) throw new Error(`${name}: ${unregistered.join(", ")} is not registered in the Teams sheet.`);
   }
@@ -146,14 +131,33 @@ async function readSheet(url: string) {
 }
 
 function verifyList(expected: unknown[], actual: unknown[], name: string, key: (x: any) => string) {
+  const expectedList = Array.isArray(expected) ? expected : [];
   const actualList = Array.isArray(actual) ? actual : [];
-  if (expected.length !== actualList.length) throw new Error(`${name} was written but Google Sheets returned a different record count. Expected ${expected.length}, received ${actualList.length}.`);
-  const set = new Set(actualList.map(key));
-  for (const x of expected) if (!set.has(key(x))) throw new Error(`${name} was written but read-back does not match.`);
+  if (expectedList.length !== actualList.length) throw new Error(`${name} was written but Google Sheets returned a different record count. Expected ${expectedList.length}, received ${actualList.length}.`);
+  const expectedKeys = expectedList.map(key);
+  const actualKeys = actualList.map(key);
+  const actualSet = new Set(actualKeys);
+  const missing = expectedKeys.filter(k => !actualSet.has(k));
+  if (missing.length) throw new Error(`${name} was written but read-back does not match. Missing record: ${missing[0]}`);
 }
 
-function getResultsFromPayload(payload: any) {
-  return Array.isArray(payload?.rankingResults) ? payload.rankingResults : Array.isArray(payload?.results) ? payload.results : [];
+function rankingIdentity(x: any) {
+  const teamId = text(x?.teamId ?? x?.["Team ID"]);
+  const teamName = text(x?.teamName ?? x?.["Team Name"] ?? x?.Team).toLowerCase();
+  const rank = num(x?.rank ?? x?.Rank);
+  return `${teamId || teamName}|${rank}`;
+}
+
+function rankingSnapshot(x: any) {
+  return JSON.stringify({
+    identity: rankingIdentity(x),
+    communityPoints: num(x?.communityPoints ?? x?.["Community Points"] ?? x?.communityScore ?? x?.["Community Score"]),
+    championships: num(x?.championships ?? x?.Championships),
+    runnerUp: num(x?.runnerUp ?? x?.["Runner-Up"]),
+    secondRunnerUp: num(x?.secondRunnerUp ?? x?.["2nd Runner-Up"]),
+    top5Finishes: num(x?.top5Finishes ?? x?.["Top 5 Finishes"]),
+    finalistFinishes: num(x?.finalistFinishes ?? x?.FinalistFinishes)
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -175,17 +179,13 @@ export async function POST(request: NextRequest) {
     if (hasEvents) {
       data.events = cleanEvents(p.events);
       validatePublishedEvents(data.events, data.teams || []);
-
-      // Store every result for the admin/audit trail, but only published events
-      // are allowed to influence the public Community Ranking.
       data.rankingResults = rankingResults(data.events);
       data.results = data.rankingResults;
-
       const publishedEvents = data.events.filter((e: any) => bool(e.published));
       if (hasTeams && publishedEvents.length) {
         data.rankings = rankTeams(data.teams as any, publishedEvents as any).map((t: any) => ({
           ...t,
-          teamId: t.teamId || data.teams.find((x: any) => String(x.teamName).trim().toLowerCase() === String(t.teamName).trim().toLowerCase())?.teamId || ""
+          teamId: t.teamId || data.teams.find((x: any) => text(x.teamName).toLowerCase() === text(t.teamName).toLowerCase())?.teamId || ""
         }));
       } else if (hasTeams) {
         data.rankings = [];
@@ -195,29 +195,34 @@ export async function POST(request: NextRequest) {
     if (hasRankings && !hasEvents) data.rankings = p.rankings;
     if (hasCollabs) data.collaborators = p.collaborators;
     if (hasNews) data.news = p.news;
-
     if (!Object.keys(data).length) throw new Error("No supported data section was supplied.");
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      cache: "no-store",
-      body: JSON.stringify(data)
-    });
-
+    const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", body: JSON.stringify(data) });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || result.ok === false) throw new Error(String(result.message || "Google Sheet update failed."));
 
     let saved: any = result?.data || result || {};
-    let savedResults = hasEvents ? getResultsFromPayload(saved) : [];
+    let savedResults = hasEvents ? (Array.isArray(saved.rankingResults) ? saved.rankingResults : Array.isArray(saved.results) ? saved.results : []) : [];
     if (hasEvents && savedResults.length !== data.rankingResults.length) {
       saved = await readSheet(url);
-      savedResults = getResultsFromPayload(saved);
+      savedResults = Array.isArray(saved.rankingResults) ? saved.rankingResults : Array.isArray(saved.results) ? saved.results : [];
     }
 
-    if (hasTeams) verifyList(data.teams, saved.teams || [], "Teams", (x: any) => JSON.stringify([String(x.teamName ?? x.Team ?? "").trim(), String(x.teamId ?? x["Team ID"] ?? "").trim(), String(x.logoUrl ?? x["Logo URL"] ?? "").trim(), String(x.slug ?? x.Slug ?? "").trim()]));
-    if (hasEvents) verifyList(data.rankingResults, savedResults, "Event Results", (x: any) => JSON.stringify([x.eventId ?? x["Event ID"] ?? "", String(x.teamName ?? x["Team Name"] ?? "").toLowerCase(), num(x.position ?? x.Position ?? x.rank), num(x.positionPoints ?? x["Position Points"]), num(x.kills ?? x.Kills), num(x.booyahs ?? x.Booyahs), num(x.totalPoints ?? x["Total Points"] ?? x.total ?? x.Total), bool(x.published ?? x.Published)]));
-    if (data.rankings) verifyList(data.rankings, saved.rankings || [], "Community Rankings", (x: any) => JSON.stringify([String(x.teamId ?? x["Team ID"] ?? ""), String(x.teamName ?? x["Team Name"] ?? "").toLowerCase(), num(x.rank ?? x.Rank), num(x.communityScore ?? x["Community Score"] ?? x.communityPoints), num(x.championships ?? x.Championships), num(x.runnerUp ?? x["Runner-Up"]), num(x.secondRunnerUp ?? x["2nd Runner-Up"]), num(x.top5Finishes ?? x["Top 5 Finishes"])]));
+    if (hasTeams) verifyList(data.teams, saved.teams || [], "Teams", (x: any) => `${text(x.teamId ?? x["Team ID"])}|${text(x.teamName ?? x["Team Name"] ?? x.Team).toLowerCase()}`);
+    if (hasEvents) verifyList(data.rankingResults, savedResults, "Event Results", (x: any) => JSON.stringify([text(x.eventId ?? x["Event ID"]), text(x.teamName ?? x["Team Name"]).toLowerCase(), num(x.position ?? x.Position ?? x.rank), num(x.totalPoints ?? x["Total Points"] ?? x.total ?? x.Total), bool(x.published ?? x.Published)]));
+    if (data.rankings) {
+      // Google Sheets can normalize aliases, numeric cells and legacy column names.
+      // Verify the stable ranking identity first, then the ranking statistics.
+      verifyList(data.rankings, saved.rankings || [], "Community Rankings", rankingIdentity);
+      const savedByIdentity = new Map((saved.rankings || []).map((x: any) => [rankingIdentity(x), rankingSnapshot(x)]));
+      for (const expected of data.rankings) {
+        const id = rankingIdentity(expected);
+        const actual = savedByIdentity.get(id);
+        if (!actual || actual !== rankingSnapshot(expected)) {
+          throw new Error(`Community Rankings was written but read-back statistics do not match for ${text(expected.teamName)}.`);
+        }
+      }
+    }
     if (hasCollabs) verifyList(data.collaborators, saved.collaborators || [], "Collaborators", (x: any) => JSON.stringify(x));
     if (hasNews) verifyList(data.news, saved.news || [], "News", (x: any) => JSON.stringify(x));
 
@@ -228,22 +233,7 @@ export async function POST(request: NextRequest) {
     const publishedResults = hasEvents ? data.rankingResults.filter((r: any) => bool(r.published)) : [];
     const publishedRanking = Array.isArray(data.rankings) ? data.rankings : [];
 
-    return NextResponse.json({
-      ok: true,
-      published: hasEvents,
-      googleSheets: true,
-      verified: true,
-      rankingDetailsSaved: hasEvents,
-      rankingsCalculated: Boolean(data.rankings),
-      eventResultsCount: savedResults.length,
-      publishedEventCount: publishedEvents.length,
-      publishedResultCount: publishedResults.length,
-      rankingTeamCount: publishedRanking.length,
-      publishedAt: hasEvents ? new Date().toISOString() : null,
-      message: hasEvents
-        ? `Published successfully. ${publishedResults.length} result${publishedResults.length === 1 ? "" : "s"} verified, ${publishedRanking.length} community ranking team${publishedRanking.length === 1 ? "" : "s"} rebuilt, and public pages revalidated.`
-        : "Changes saved and verified successfully."
-    });
+    return NextResponse.json({ ok: true, published: hasEvents, googleSheets: true, verified: true, rankingDetailsSaved: hasEvents, rankingsCalculated: Boolean(data.rankings), eventResultsCount: savedResults.length, publishedEventCount: publishedEvents.length, publishedResultCount: publishedResults.length, rankingTeamCount: publishedRanking.length, publishedAt: hasEvents ? new Date().toISOString() : null, message: hasEvents ? `Published successfully. ${publishedResults.length} result${publishedResults.length === 1 ? "" : "s"} verified, ${publishedRanking.length} community ranking team${publishedRanking.length === 1 ? "" : "s"} rebuilt, and public pages revalidated.` : "Changes saved and verified successfully." });
   } catch (error) {
     console.error("Google Sheets publish error:", error);
     return NextResponse.json({ ok: false, published: false, verified: false, message: error instanceof Error ? error.message : "Unable to publish and verify ranking." }, { status: 502 });
