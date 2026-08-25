@@ -1,9 +1,9 @@
 type CacheEntry = { payload: any; expiresAt: number; storedAt: number };
 
-// Keep the in-process cache intentionally short. It is used for request
-// de-duplication and as a bounded transient-error safety net only.
-const CACHE_TTL_MS = 5000;
-const MAX_STALE_MS = 60000;
+// Keep the cache short so every public page reflects the Google Sheet quickly.
+// The cache only de-duplicates concurrent requests and avoids repeated reads
+// during the same short request burst; it is never used as an old-data fallback.
+const CACHE_TTL_MS = 2000;
 
 let cache: CacheEntry | null = null;
 let inFlight: Promise<any | null> | null = null;
@@ -14,8 +14,9 @@ export function getCachedSheetPayload(): any | null {
 }
 
 export function getLastSheetPayload(): any | null {
-  if (!cache) return null;
-  return Date.now() - cache.storedAt <= MAX_STALE_MS ? cache.payload : null;
+  // Kept for compatibility with existing imports. Public readers should not
+  // use this as a stale-data fallback.
+  return null;
 }
 
 export function setCachedSheetPayload(payload: any) {
