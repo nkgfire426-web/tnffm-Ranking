@@ -1,5 +1,12 @@
 import { readFile } from "fs/promises";
 import path from "path";
+import {
+  getCachedSheetPayload,
+  getLastSheetPayload,
+  getSheetReadInFlight,
+  setCachedSheetPayload,
+  setSheetReadInFlight,
+} from "./sheet-cache";
 
 export type EventResult = {
   teamName: string;
@@ -33,16 +40,6 @@ export const sampleEvents: TrackedEvent[] = [
   { name: "Tamil Nadu Elite Cup", organizer: "Approved Organizer", teams: 30, prize: "Rs.2000", status: "Verified", counted: "Grand Finals", date: "2026-07-20", notes: "Minimum team and prize rules satisfied." },
   { name: "Official Free Fire MAX Qualifier", organizer: "Official Match", teams: 48, prize: "Official", status: "Official", counted: "Finalist Bonus", date: "2026-08-01", notes: "Official finalist bonus applied." }
 ];
-
-function withCacheBuster(rawUrl: string) {
-  try {
-    const url = new URL(rawUrl);
-    url.searchParams.set("_tnffm_events", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    return url.toString();
-  } catch {
-    return `${rawUrl}${rawUrl.includes("?") ? "&" : "?"}_tnffm_events=${Date.now()}`;
-  }
-}
 
 function parseResults(value: unknown): EventResult[] {
   if (Array.isArray(value)) return value as EventResult[];
@@ -102,29 +99,62 @@ function normalizeEvent(event: Record<string, unknown>): TrackedEvent {
 }
 
 async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
+  const cachedPayload = getCachedSheetPayload();
+  if (cachedPayload && Array.isArray(cachedPayload.events)) {
+    return cachedPayload.events
+      .map((event: Record<string, unknown>) => normalizeEvent(event))
+      .filter((event: TrackedEvent) => event.name.length > 0);
+  }
+
+  const existingRequest = getSheetReadInFlight();
+  if (existingRequest) {
+    const payload = await existingRequest;
+    if (payload && Array.isArray(payload.events)) {
+      return payload.events
+        .map((event: Record<string, unknown>) => normalizeEvent(event))
+        .filter((event: TrackedEvent) => event.name.length > 0);
+    }
+    return null;
+  }
+
   const rawUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
   if (!rawUrl) return null;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 6000);
-  try {
-    const response = await fetch(rawUrl, {
-      method: "GET",
-      next: { revalidate: 15, tags: ["tnffm-sheet"] },
-      headers: { Accept: "application/json" },
-      signal: controller.signal
-    });
-    if (!response.ok) return null;
-    const payload = await response.json();
-    if (payload?.ok === false) return null;
-    const events = payload?.events;
-    if (!Array.isArray(events)) return null;
-    return events.map((event: Record<string, unknown>) => normalizeEvent(event)).filter((event: TrackedEvent) => event.name.length > 0);
-  } catch (error) {
-    if (error instanceof Error && error.name !== "AbortError") console.error("Google Sheets events read error:", error);
-    return null;
-  } finally {
-    clearTimeout(timeout);
-  }
+
+  const request = (async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    try {
+      const response = await fetch(rawUrl, {
+        method: "GET",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "Cache-Control": "no-cache, no-store, max-age=0",
+          Pragma: "no-cache",
+        },
+        signal: controller.signal,
+      });
+      if (!response.ok) return getLastSheetPayload();
+      const payload = await response.json();
+      if (payload?.ok === false) return getLastSheetPayload();
+      setCachedSheetPayload(payload);
+      return payload;
+    } catch (error) {
+      if (error instanceof Error && error.name !== "AbortError") {
+        console.error("Google Sheets events read error:", error);
+      }
+      return getLastSheetPayload();
+    } finally {
+      clearTimeout(timeout);
+    }
+  })().finally(() => setSheetReadInFlight(null));
+
+  setSheetReadInFlight(request);
+  const payload = await request;
+  if (!payload || !Array.isArray(payload.events)) return null;
+  return payload.events
+    .map((event: Record<string, unknown>) => normalizeEvent(event))
+    .filter((event: TrackedEvent) => event.name.length > 0);
 }
 
 export async function getTrackedEvents(): Promise<TrackedEvent[]> {
