@@ -17,8 +17,8 @@ function points(t: any) {
 }
 
 function normalizeTeams(items: unknown[]) {
-  return items.map(x => {
-    const t = { ...(x as any) };
+  return items.map((x: any) => {
+    const t = { ...x };
     t.communityPoints = points(t);
     return t;
   });
@@ -31,58 +31,29 @@ function cleanResult(r: any, e: any) {
   const rank = Math.max(1, num(r?.rank ?? r?.position) || 1);
   const matches = Math.max(0, num(e?.matchesPlayed));
   return {
-    resultId: text(r?.resultId ?? r?.id),
-    teamId: text(r?.teamId),
-    teamName: text(r?.teamName ?? r?.team),
-    position: rank,
-    rank,
-    kills,
-    booyahs,
-    positionPoints: pp,
-    killPoints: kills,
-    totalPoints: pp + kills,
-    total: pp + kills,
-    killRatio: matches ? kills / matches : 0,
-    booyahRatio: matches ? (booyahs / matches) * 100 : 0,
-    proofUrl: text(r?.proofUrl ?? r?.proofURL),
-    verified: bool(r?.verified)
+    resultId: text(r?.resultId ?? r?.id), teamId: text(r?.teamId), teamName: text(r?.teamName ?? r?.team),
+    position: rank, rank, kills, booyahs, positionPoints: pp, killPoints: kills,
+    totalPoints: pp + kills, total: pp + kills,
+    killRatio: matches ? kills / matches : 0, booyahRatio: matches ? (booyahs / matches) * 100 : 0,
+    proofUrl: text(r?.proofUrl ?? r?.proofURL), verified: bool(r?.verified)
   };
 }
 
 function cleanEvents(items: unknown[]) {
-  return items.map((e: any) => ({
-    ...e,
-    matchesPlayed: Math.max(0, num(e?.matchesPlayed)),
-    published: bool(e?.published),
-    results: (Array.isArray(e?.results) ? e.results : [])
-      .filter((r: any) => text(r?.teamName ?? r?.team))
-      .map((r: any) => cleanResult(r, e))
+  return items.map((e: any) => ({ ...e, matchesPlayed: Math.max(0, num(e?.matchesPlayed)), published: bool(e?.published),
+    results: (Array.isArray(e?.results) ? e.results : []).filter((r: any) => text(r?.teamName ?? r?.team)).map((r: any) => cleanResult(r, e))
   }));
 }
 
 function rankingResults(events: any[]) {
   const rows: any[] = [];
   events.forEach((e, i) => (e.results || []).forEach((r: any, j: number) => rows.push({
-    resultId: text(r.resultId) || `RES-${i + 1}-${j + 1}`,
-    eventId: text(e.eventId ?? e.id) || `EVENT-${i + 1}`,
-    eventName: text(e.name ?? e.eventName),
-    eventDate: text(e.date ?? e.eventDate),
-    published: bool(e.published),
-    teamId: text(r.teamId),
-    teamName: text(r.teamName),
-    position: num(r.rank ?? r.position),
-    rank: num(r.rank ?? r.position),
-    positionPoints: num(r.positionPoints),
-    kills: num(r.kills),
-    booyahs: num(r.booyahs),
-    killPoints: num(r.killPoints),
-    totalPoints: num(r.total ?? r.totalPoints),
-    total: num(r.total ?? r.totalPoints),
-    killRatio: num(r.killRatio),
-    booyahRatio: num(r.booyahRatio),
-    proofUrl: text(r.proofUrl ?? r.proofURL),
-    verified: bool(r.verified),
-    resultOrder: j + 1
+    resultId: text(r.resultId) || `RES-${i + 1}-${j + 1}`, eventId: text(e.eventId ?? e.id) || `EVENT-${i + 1}`,
+    eventName: text(e.name ?? e.eventName), eventDate: text(e.date ?? e.eventDate), published: bool(e.published),
+    teamId: text(r.teamId), teamName: text(r.teamName), position: num(r.rank ?? r.position), rank: num(r.rank ?? r.position),
+    positionPoints: num(r.positionPoints), kills: num(r.kills), booyahs: num(r.booyahs), killPoints: num(r.killPoints),
+    totalPoints: num(r.total ?? r.totalPoints), total: num(r.total ?? r.totalPoints), killRatio: num(r.killRatio),
+    booyahRatio: num(r.booyahRatio), proofUrl: text(r.proofUrl ?? r.proofURL), verified: bool(r.verified), resultOrder: j + 1
   })));
   return rows;
 }
@@ -106,8 +77,8 @@ function validatePublishedEvents(events: any[], teams: any[]) {
     const ranks = results.map((r: any) => num(r.rank));
     if (ranks.some((r: number) => r < 1 || r > 18)) throw new Error(`${name}: ranks must be between 1 and 18.`);
     if (new Set(ranks).size !== ranks.length) throw new Error(`${name}: duplicate ranks are not allowed.`);
-    [...ranks].sort((a, b) => a - b).forEach((rank, index) => { if (rank !== index + 1) throw new Error(`${name}: ranks must be continuous starting at 1. Missing rank ${index + 1}.`); });
-    const unregistered = names.filter(team => !registered.has(team));
+    [...ranks].sort((a: number, b: number) => a - b).forEach((rank: number, index: number) => { if (rank !== index + 1) throw new Error(`${name}: ranks must be continuous starting at 1. Missing rank ${index + 1}.`); });
+    const unregistered = names.filter((team: string) => !registered.has(team));
     if (unregistered.length) throw new Error(`${name}: ${unregistered.join(", ")} is not registered in the Teams sheet.`);
   }
 }
@@ -152,10 +123,8 @@ function rankingSnapshot(x: any) {
   return JSON.stringify({
     identity: rankingIdentity(x),
     communityPoints: num(x?.communityPoints ?? x?.["Community Points"] ?? x?.communityScore ?? x?.["Community Score"]),
-    championships: num(x?.championships ?? x?.Championships),
-    runnerUp: num(x?.runnerUp ?? x?.["Runner-Up"]),
-    secondRunnerUp: num(x?.secondRunnerUp ?? x?.["2nd Runner-Up"]),
-    top5Finishes: num(x?.top5Finishes ?? x?.["Top 5 Finishes"]),
+    championships: num(x?.championships ?? x?.Championships), runnerUp: num(x?.runnerUp ?? x?.["Runner-Up"]),
+    secondRunnerUp: num(x?.secondRunnerUp ?? x?.["2nd Runner-Up"]), top5Finishes: num(x?.top5Finishes ?? x?.["Top 5 Finishes"]),
     finalistFinishes: num(x?.finalistFinishes ?? x?.FinalistFinishes)
   });
 }
@@ -167,15 +136,9 @@ export async function POST(request: NextRequest) {
     const url = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
     if (!url) return NextResponse.json({ ok: false, message: "Google Sheets is not configured. Add GOOGLE_SHEETS_WEBHOOK_URL in Vercel." }, { status: 503 });
 
-    const hasTeams = Array.isArray(p.teams);
-    const hasEvents = Array.isArray(p.events);
-    const hasRankings = Array.isArray(p.rankings);
-    const hasCollabs = Array.isArray(p.collaborators);
-    const hasNews = Array.isArray(p.news);
+    const hasTeams = Array.isArray(p.teams), hasEvents = Array.isArray(p.events), hasRankings = Array.isArray(p.rankings), hasCollabs = Array.isArray(p.collaborators), hasNews = Array.isArray(p.news);
     const data: any = {};
-
     if (hasTeams) data.teams = normalizeTeams(p.teams);
-
     if (hasEvents) {
       data.events = cleanEvents(p.events);
       validatePublishedEvents(data.events, data.teams || []);
@@ -184,14 +147,10 @@ export async function POST(request: NextRequest) {
       const publishedEvents = data.events.filter((e: any) => bool(e.published));
       if (hasTeams && publishedEvents.length) {
         data.rankings = rankTeams(data.teams as any, publishedEvents as any).map((t: any) => ({
-          ...t,
-          teamId: t.teamId || data.teams.find((x: any) => text(x.teamName).toLowerCase() === text(t.teamName).toLowerCase())?.teamId || ""
+          ...t, teamId: t.teamId || data.teams.find((x: any) => text(x.teamName).toLowerCase() === text(t.teamName).toLowerCase())?.teamId || ""
         }));
-      } else if (hasTeams) {
-        data.rankings = [];
-      }
+      } else if (hasTeams) data.rankings = [];
     }
-
     if (hasRankings && !hasEvents) data.rankings = p.rankings;
     if (hasCollabs) data.collaborators = p.collaborators;
     if (hasNews) data.news = p.news;
@@ -211,16 +170,12 @@ export async function POST(request: NextRequest) {
     if (hasTeams) verifyList(data.teams, saved.teams || [], "Teams", (x: any) => `${text(x.teamId ?? x["Team ID"])}|${text(x.teamName ?? x["Team Name"] ?? x.Team).toLowerCase()}`);
     if (hasEvents) verifyList(data.rankingResults, savedResults, "Event Results", (x: any) => JSON.stringify([text(x.eventId ?? x["Event ID"]), text(x.teamName ?? x["Team Name"]).toLowerCase(), num(x.position ?? x.Position ?? x.rank), num(x.totalPoints ?? x["Total Points"] ?? x.total ?? x.Total), bool(x.published ?? x.Published)]));
     if (data.rankings) {
-      // Google Sheets can normalize aliases, numeric cells and legacy column names.
-      // Verify the stable ranking identity first, then the ranking statistics.
       verifyList(data.rankings, saved.rankings || [], "Community Rankings", rankingIdentity);
       const savedByIdentity = new Map((saved.rankings || []).map((x: any) => [rankingIdentity(x), rankingSnapshot(x)]));
       for (const expected of data.rankings) {
         const id = rankingIdentity(expected);
         const actual = savedByIdentity.get(id);
-        if (!actual || actual !== rankingSnapshot(expected)) {
-          throw new Error(`Community Rankings was written but read-back statistics do not match for ${text(expected.teamName)}.`);
-        }
+        if (!actual || actual !== rankingSnapshot(expected)) throw new Error(`Community Rankings was written but read-back statistics do not match for ${text(expected.teamName)}.`);
       }
     }
     if (hasCollabs) verifyList(data.collaborators, saved.collaborators || [], "Collaborators", (x: any) => JSON.stringify(x));
@@ -228,11 +183,9 @@ export async function POST(request: NextRequest) {
 
     revalidateTag("tnffm-sheet");
     ["/", "/ranking", "/teams", "/tracked-events", "/admin", "/collaborators"].forEach(path => revalidatePath(path));
-
     const publishedEvents = hasEvents ? data.events.filter((e: any) => bool(e.published)) : [];
     const publishedResults = hasEvents ? data.rankingResults.filter((r: any) => bool(r.published)) : [];
     const publishedRanking = Array.isArray(data.rankings) ? data.rankings : [];
-
     return NextResponse.json({ ok: true, published: hasEvents, googleSheets: true, verified: true, rankingDetailsSaved: hasEvents, rankingsCalculated: Boolean(data.rankings), eventResultsCount: savedResults.length, publishedEventCount: publishedEvents.length, publishedResultCount: publishedResults.length, rankingTeamCount: publishedRanking.length, publishedAt: hasEvents ? new Date().toISOString() : null, message: hasEvents ? `Published successfully. ${publishedResults.length} result${publishedResults.length === 1 ? "" : "s"} verified, ${publishedRanking.length} community ranking team${publishedRanking.length === 1 ? "" : "s"} rebuilt, and public pages revalidated.` : "Changes saved and verified successfully." });
   } catch (error) {
     console.error("Google Sheets publish error:", error);
