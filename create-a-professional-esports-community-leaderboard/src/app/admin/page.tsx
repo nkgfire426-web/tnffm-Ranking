@@ -1,5 +1,5 @@
 import { Header } from "@/components/Header";
-import { CommunityAdminDashboard } from "@/components/CommunityAdminDashboard";
+import { AdminDashboardStable } from "@/components/AdminDashboardStable";
 import { AdminTeamRemoval } from "@/components/AdminTeamRemoval";
 import { getTrackedEvents } from "@/lib/events";
 import { getRegisteredTeams } from "@/lib/google-sheets";
@@ -28,7 +28,7 @@ export default async function AdminPage() {
         </Link>
         <AdminTeamRemoval initialTeams={teams} />
       </div>
-      <CommunityAdminDashboard initialTeams={teams} initialEvents={events} initialCollaborators={collaborators} />
+      <AdminDashboardStable initialTeams={teams} initialEvents={events} initialCollaborators={collaborators} />
     </main>
   );
 }
