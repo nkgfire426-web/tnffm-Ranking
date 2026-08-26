@@ -14,13 +14,20 @@ async function callSheets(url: string, method: "GET" | "POST", body?: unknown) {
     throw new Error("GOOGLE_SHEETS_WEBHOOK_URL must be the current deployed Google Apps Script Web App /exec URL.");
   }
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  target.searchParams.set("_tnffm_verify", requestId);
+  target.searchParams.set("_tnffm_request", requestId);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
     const response = await fetch(target.toString(), {
-      method, cache: "no-store",
-      headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0", Pragma: "no-cache", "X-TNFFM-Request-ID": requestId, ...(method === "POST" ? { "Content-Type": "application/json" } : {}) },
+      method,
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Cache-Control": "no-cache, no-store, max-age=0",
+        Pragma: "no-cache",
+        "X-TNFFM-Request-ID": requestId,
+        ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
+      },
       ...(method === "POST" ? { body: JSON.stringify(body ?? {}) } : {}),
       signal: controller.signal,
     });
@@ -28,23 +35,38 @@ async function callSheets(url: string, method: "GET" | "POST", body?: unknown) {
     let data: any = null;
     try { data = raw ? JSON.parse(raw) : null; } catch { /* handled below */ }
     if (!response.ok) {
-      if (response.status === 404) throw new Error("Google Apps Script HTTP 404. The configured Web App deployment is missing, deleted, or outdated. Deploy the current Code.gs as a Web app (Execute as Me + Anyone) and replace GOOGLE_SHEETS_WEBHOOK_URL with the new /exec URL.");
+      if (response.status === 404) {
+        throw new Error("Google Apps Script HTTP 404. The configured Web App deployment is missing, deleted, or outdated. Deploy the current Code.gs as a Web app (Execute as Me + Anyone) and replace GOOGLE_SHEETS_WEBHOOK_URL with the new /exec URL.");
+      }
       throw new Error(`Google Apps Script HTTP error (${response.status}). ${text(data?.message || data?.error || raw).slice(0, 500)}`);
     }
-    if (!data || data.ok === false) throw new Error(`Google Sheet update failed. ${text(data?.message || data?.error || raw || "Apps Script returned an invalid response.").slice(0, 500)}`);
+    if (!data || data.ok === false) {
+      throw new Error(`Google Sheet request failed. ${text(data?.message || data?.error || raw || "Apps Script returned an invalid response.").slice(0, 500)}`);
+    }
     return data;
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") throw new Error(`Google Apps Script request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds. Check the Web App deployment and Spreadsheet ID.`);
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Google Apps Script request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds. Check the Web App deployment and Spreadsheet ID.`);
+    }
     throw error;
-  } finally { clearTimeout(timeout); }
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
-function teamKey(t: any) { return `${text(t?.teamId ?? t?.["Team ID"])}|${text(t?.teamName ?? t?.["Team Name"] ?? t?.Team).toLowerCase()}`; }
-function collaboratorKey(c: any) { return text(c?.collaboratorId ?? c?.id ?? c?.["Collaborator ID"]) || `name:${text(c?.name ?? c?.Name).toLowerCase()}`; }
+function keyOf(value: unknown) { return text(value); }
+function teamKey(t: any) { return `${keyOf(t?.teamId ?? t?.["Team ID"])}|${keyOf(t?.teamName ?? t?.["Team Name"] ?? t?.Team).toLowerCase()}`; }
+function rankingKey(r: any) { return keyOf(r?.teamId ?? r?.["Team ID"]) || `name:${keyOf(r?.teamName ?? r?.["Team Name"] ?? r?.Team).toLowerCase()}`; }
+function collaboratorKey(c: any) { return keyOf(c?.collaboratorId ?? c?.id ?? c?.["Collaborator ID"]) || `name:${keyOf(c?.name ?? c?.Name).toLowerCase()}`; }
+function resultKey(r: any) { return keyOf(r?.resultId ?? r?.id ?? r?.["Result ID"]); }
+function eventKey(e: any) { return keyOf(e?.eventId ?? e?.id ?? e?.["Event ID"]); }
+function simpleKey(item: any, names: string[]) { for (const name of names) { const value = keyOf(item?.[name]); if (value) return value; } return ""; }
+
 function verifyKeys(expected: any[], actual: any[], name: string, key: (v: any) => string) {
   if (!Array.isArray(actual)) throw new Error(`${name}: Google Sheets did not return a valid array.`);
-  const actualKeys = new Set(actual.map(key));
-  const missing = expected.map(key).filter(k => !actualKeys.has(k));
+  const expectedKeys = expected.map(key).filter(Boolean);
+  const actualKeys = new Set(actual.map(key).filter(Boolean));
+  const missing = expectedKeys.filter((k) => !actualKeys.has(k));
   if (missing.length) throw new Error(`${name} was written but read-back does not match. Missing record: ${missing[0]}`);
 }
 
@@ -52,7 +74,10 @@ export async function POST(request: NextRequest) {
   try {
     const payload = await request.json();
     const configuredPassword = process.env.ADMIN_PASSWORD;
-    if (!configuredPassword || payload?.password !== configuredPassword) return NextResponse.json({ ok: false, message: "Invalid password." }, { status: 401 });
+    if (!configuredPassword || payload?.password !== configuredPassword) {
+      return NextResponse.json({ ok: false, message: "Invalid password." }, { status: 401 });
+    }
+
     const url = process.env.GOOGLE_SHEETS_WEBHOOK_URL?.trim();
     if (!url) return NextResponse.json({ ok: false, message: "GOOGLE_SHEETS_WEBHOOK_URL is not configured." }, { status: 503 });
 
@@ -63,21 +88,38 @@ export async function POST(request: NextRequest) {
     if (!Object.keys(data).length) return NextResponse.json({ ok: false, message: "No supported data section was supplied." }, { status: 400 });
 
     const saved = await callSheets(url, "POST", data);
-    const fresh = await callSheets(url, "GET");
-
-    if (Array.isArray(data.teams)) verifyKeys(data.teams, fresh.teams, "Teams", teamKey);
-    if (Array.isArray(data.collaborators)) verifyKeys(data.collaborators, fresh.collaborators, "Collaborators", collaboratorKey);
-    if (Array.isArray(data.news)) verifyKeys(data.news, fresh.news, "News", x => text(x?.ID ?? x?.id));
-    if (Array.isArray(data.events)) verifyKeys(data.events, fresh.events, "Events", x => text(x?.eventId ?? x?.id ?? x?.["Event ID"]));
-    if (Array.isArray(data.rankingResults) || Array.isArray(data.results)) verifyKeys(data.rankingResults || data.results, fresh.rankingResults || fresh.results, "Event Results", x => text(x?.resultId ?? x?.id ?? x?.["Result ID"]));
-
-    try { revalidateTag("tnffm-sheet", "max"); } catch { /* supported across Next.js versions */ }
-    for (const path of ["/", "/ranking", "/teams", "/tracked-events", "/admin", "/collaborators"]) {
-      try { revalidatePath(path); } catch { /* one path must not invalidate an otherwise successful save */ }
+    if (saved?.verified === false || saved?.saved === false) {
+      throw new Error(text(saved?.message || saved?.error || "Google Apps Script did not confirm the write."));
     }
-    return NextResponse.json({ ...saved, ok: true, saved: true, verified: true, googleSheets: true }, { headers: { "Cache-Control": "no-store" } });
+
+    // Never tell the admin that a save succeeded until a fresh GET sees the records.
+    const fresh = await callSheets(url, "GET");
+    if (Array.isArray(data.teams)) verifyKeys(data.teams, fresh.teams, "Teams", teamKey);
+    if (Array.isArray(data.rankings)) verifyKeys(data.rankings, fresh.rankings, "Rankings", rankingKey);
+    if (Array.isArray(data.collaborators)) verifyKeys(data.collaborators, fresh.collaborators, "Collaborators", collaboratorKey);
+    if (Array.isArray(data.news)) verifyKeys(data.news, fresh.news, "News", (x) => simpleKey(x, ["ID", "id"]));
+    if (Array.isArray(data.events)) verifyKeys(data.events, fresh.events, "Events", eventKey);
+    if (Array.isArray(data.rankingResults) || Array.isArray(data.results)) {
+      verifyKeys(data.rankingResults || data.results, fresh.rankingResults || fresh.results, "Event Results", resultKey);
+    }
+    if (Array.isArray(data.accounts)) verifyKeys(data.accounts, fresh.accounts, "Team Accounts", (x) => simpleKey(x, ["Username", "username"]));
+    if (Array.isArray(data.submissions)) verifyKeys(data.submissions, fresh.submissions, "Submissions", (x) => simpleKey(x, ["SubmissionID", "submissionId"]));
+    if (Array.isArray(data.feedback)) verifyKeys(data.feedback, fresh.feedback, "Feedback", (x) => simpleKey(x, ["FeedbackID", "feedbackId"]));
+
+    try { revalidateTag("tnffm-sheet", "max"); } catch { /* compatible with Next.js versions */ }
+    for (const path of ["/", "/ranking", "/teams", "/tracked-events", "/admin", "/collaborators"]) {
+      try { revalidatePath(path); } catch { /* invalidation failure must not undo a verified save */ }
+    }
+
+    return NextResponse.json(
+      { ...saved, ok: true, saved: true, verified: true, googleSheets: true, readBackVerified: true },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (error) {
     console.error("Admin Google Sheets save error:", error);
-    return NextResponse.json({ ok: false, saved: false, verified: false, message: error instanceof Error ? error.message : "Google Sheet update failed." }, { status: 502 });
+    return NextResponse.json(
+      { ok: false, saved: false, verified: false, readBackVerified: false, message: error instanceof Error ? error.message : "Google Sheet update failed." },
+      { status: 502, headers: { "Cache-Control": "no-store" } }
+    );
   }
 }
