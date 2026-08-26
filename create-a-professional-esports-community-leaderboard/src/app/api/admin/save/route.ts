@@ -18,7 +18,7 @@ function cleanResult(r: any, e: any) {
 function cleanEvents(items: unknown[]) { return items.map((e: any) => ({ ...e, matchesPlayed: Math.max(0, num(e?.matchesPlayed)), published: bool(e?.published), results: (Array.isArray(e?.results) ? e.results : []).filter((r: any) => text(r?.teamName ?? r?.team)).map((r: any) => cleanResult(r, e)) })); }
 function rankingResults(events: any[]) {
   const rows: any[] = [];
-  events.forEach((e, i) => (e.results || []).forEach((r: any, j) => rows.push({ resultId: text(r.resultId) || `RES-${i + 1}-${j + 1}`, eventId: text(e.eventId ?? e.id) || `EVENT-${i + 1}`, eventName: text(e.name ?? e.eventName), eventDate: text(e.date ?? e.eventDate), published: bool(e.published), teamId: text(r.teamId), teamName: text(r.teamName), position: num(r.rank ?? r.position), rank: num(r.rank ?? r.position), positionPoints: num(r.positionPoints), kills: num(r.kills), booyahs: num(r.booyahs), killPoints: num(r.killPoints), totalPoints: num(r.total ?? r.totalPoints), total: num(r.total ?? r.totalPoints), killRatio: num(r.killRatio), booyahRatio: num(r.booyahRatio), proofUrl: text(r.proofUrl ?? r.proofURL), verified: bool(r.verified), resultOrder: j + 1 })));
+  events.forEach((e: any, i: number) => (e.results || []).forEach((r: any, j: number) => rows.push({ resultId: text(r.resultId) || `RES-${i + 1}-${j + 1}`, eventId: text(e.eventId ?? e.id) || `EVENT-${i + 1}`, eventName: text(e.name ?? e.eventName), eventDate: text(e.date ?? e.eventDate), published: bool(e.published), teamId: text(r.teamId), teamName: text(r.teamName), position: num(r.rank ?? r.position), rank: num(r.rank ?? r.position), positionPoints: num(r.positionPoints), kills: num(r.kills), booyahs: num(r.booyahs), killPoints: num(r.killPoints), totalPoints: num(r.total ?? r.totalPoints), total: num(r.total ?? r.totalPoints), killRatio: num(r.killRatio), booyahRatio: num(r.booyahRatio), proofUrl: text(r.proofUrl ?? r.proofURL), verified: bool(r.verified), resultOrder: j + 1 })));
   return rows;
 }
 function validatePublishedEvents(events: any[], teams: any[]) {
@@ -65,13 +65,10 @@ function verifyList(expected: unknown[], actual: unknown[], name: string, key: (
   if (missing.length) throw new Error(`${name} was written but read-back does not match. Missing record: ${missing[0]}`);
 }
 function collaboratorIdentity(x: any) {
-  const id = text(x?.collaboratorId ?? x?.id ?? x?.["Collaborator ID"]);
-  const name = text(x?.name ?? x?.Name).toLowerCase();
+  const id = text(x?.collaboratorId ?? x?.id ?? x?.["Collaborator ID"]), name = text(x?.name ?? x?.Name).toLowerCase();
   return id || `name:${name}`;
 }
-function collaboratorSnapshot(x: any) {
-  return JSON.stringify({ id: collaboratorIdentity(x), name: text(x?.name ?? x?.Name), role: text(x?.role ?? x?.Role), status: text(x?.status ?? x?.Status), contact: text(x?.contact ?? x?.Contact), logoUrl: text(x?.logoUrl ?? x?.LogoURL ?? x?.["Logo URL"]), website: text(x?.website ?? x?.Website), instagram: text(x?.instagram ?? x?.Instagram) });
-}
+function collaboratorSnapshot(x: any) { return JSON.stringify({ id: collaboratorIdentity(x), name: text(x?.name ?? x?.Name), role: text(x?.role ?? x?.Role), status: text(x?.status ?? x?.Status), contact: text(x?.contact ?? x?.Contact), logoUrl: text(x?.logoUrl ?? x?.LogoURL ?? x?.["Logo URL"]), website: text(x?.website ?? x?.Website), instagram: text(x?.instagram ?? x?.Instagram) }); }
 function rankingIdentity(x: any) { const teamId = text(x?.teamId ?? x?.["Team ID"]), teamName = text(x?.teamName ?? x?.["Team Name"] ?? x?.Team).toLowerCase(), rank = num(x?.rank ?? x?.Rank); return `${teamId || teamName}|${rank}`; }
 function rankingSnapshot(x: any) { return JSON.stringify({ identity: rankingIdentity(x), communityPoints: num(x?.communityPoints ?? x?.["Community Points"] ?? x?.communityScore ?? x?.["Community Score"]), championships: num(x?.championships ?? x?.Championships), runnerUp: num(x?.runnerUp ?? x?.["Runner-Up"]), secondRunnerUp: num(x?.secondRunnerUp ?? x?.["2nd Runner-Up"]), top5Finishes: num(x?.top5Finishes ?? x?.["Top 5 Finishes"]), finalistFinishes: num(x?.finalistFinishes ?? x?.FinalistFinishes) }); }
 
@@ -102,11 +99,7 @@ export async function POST(request: NextRequest) {
       const savedCollaborators = Array.isArray(saved.collaborators) ? saved.collaborators : [];
       verifyList(data.collaborators, savedCollaborators, "Collaborators", collaboratorIdentity);
       const savedByIdentity = new Map(savedCollaborators.map((x: any) => [collaboratorIdentity(x), collaboratorSnapshot(x)]));
-      for (const expected of data.collaborators) {
-        const id = collaboratorIdentity(expected), actual = savedByIdentity.get(id);
-        if (!actual) throw new Error(`Collaborators was written but read-back does not match. Missing record: ${id}`);
-        if (actual !== collaboratorSnapshot(expected)) throw new Error(`Collaborators was written but read-back fields do not match for ${text(expected.name ?? expected.Name)}.`);
-      }
+      for (const expected of data.collaborators) { const id = collaboratorIdentity(expected), actual = savedByIdentity.get(id); if (!actual) throw new Error(`Collaborators was written but read-back does not match. Missing record: ${id}`); if (actual !== collaboratorSnapshot(expected)) throw new Error(`Collaborators was written but read-back fields do not match for ${text(expected.name ?? expected.Name)}.`); }
     }
     if (hasNews) verifyList(data.news, saved.news || [], "News", (x: any) => JSON.stringify(x));
     revalidateTag("tnffm-sheet"); ["/", "/ranking", "/teams", "/tracked-events", "/admin", "/collaborators"].forEach(path => revalidatePath(path));
@@ -117,5 +110,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, published: false, verified: false, message: error instanceof Error ? error.message : "Unable to publish and verify ranking." }, { status: 502 });
   }
 }
-
 function savedCollaboratorsCount(saved: any) { return Array.isArray(saved?.collaborators) ? saved.collaborators.length : 0; }
