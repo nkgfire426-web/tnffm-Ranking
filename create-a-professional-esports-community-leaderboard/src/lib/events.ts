@@ -56,8 +56,16 @@ function asBoolean(value: unknown) {
   return text === "true" || text === "yes" || text === "1" || text === "published";
 }
 
+function isHiddenStatus(value: unknown) {
+  const status = String(value ?? "").trim().toLowerCase();
+  return ["hidden", "draft", "unpublished", "rejected", "inactive", "disabled"].includes(status);
+}
+
 function normalizeEvent(event: Record<string, unknown>): TrackedEvent {
-  const matches = Math.max(0, Math.floor(asNumber(event.matchesPlayed ?? event.MatchesPlayed ?? event.matches ?? event.Matches, 0)));
+  const matches = Math.max(
+    0,
+    Math.floor(asNumber(event.matchesPlayed ?? event.MatchesPlayed ?? event.matches ?? event.Matches, 0))
+  );
   const results = parseResults(event.results ?? event.Results ?? event.resultData ?? event.ResultData)
     .map((result) => {
       const r = result as EventResult & Record<string, unknown>;
@@ -173,5 +181,14 @@ async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
 }
 
 export async function getTrackedEvents(): Promise<TrackedEvent[]> {
+  // Internal/admin callers receive the complete live sheet data.
   return (await fetchEventsFromGoogleSheets()) ?? [];
+}
+
+export async function getPublishedTrackedEvents(): Promise<TrackedEvent[]> {
+  const events = await getTrackedEvents();
+  return events.filter((event) => {
+    const status = String(event.status ?? "").trim().toLowerCase();
+    return event.published === true && !isHiddenStatus(status);
+  });
 }
