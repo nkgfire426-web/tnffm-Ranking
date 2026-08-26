@@ -106,7 +106,9 @@ export async function POST(request: NextRequest) {
     if (Array.isArray(data.submissions)) verifyKeys(data.submissions, fresh.submissions, "Submissions", (x) => simpleKey(x, ["SubmissionID", "submissionId"]));
     if (Array.isArray(data.feedback)) verifyKeys(data.feedback, fresh.feedback, "Feedback", (x) => simpleKey(x, ["FeedbackID", "feedbackId"]));
 
-    try { revalidateTag("tnffm-sheet", "max"); } catch { /* compatible with Next.js versions */ }
+    // Next.js 15/16 expects a single cache-tag argument here. Keep invalidation
+    // best-effort so a verified Sheet write can never be reported as failed.
+    try { revalidateTag("tnffm-sheet"); } catch { /* cache invalidation must not undo a verified save */ }
     for (const path of ["/", "/ranking", "/teams", "/tracked-events", "/admin", "/collaborators"]) {
       try { revalidatePath(path); } catch { /* invalidation failure must not undo a verified save */ }
     }
