@@ -32,6 +32,8 @@ export type TrackedEvent = {
   results?: EventResult[];
 };
 
+const SHEET_TIMEOUT_MS = 15000;
+
 function parseResults(value: unknown): EventResult[] {
   if (Array.isArray(value)) return value as EventResult[];
   if (typeof value !== "string" || !value.trim()) return [];
@@ -55,22 +57,17 @@ function asBoolean(value: unknown) {
 }
 
 function normalizeEvent(event: Record<string, unknown>): TrackedEvent {
-  const matches = Math.max(
-    0,
-    Math.floor(asNumber(event.matchesPlayed ?? event.MatchesPlayed ?? event.matches ?? event.Matches, 0))
-  );
-
+  const matches = Math.max(0, Math.floor(asNumber(event.matchesPlayed ?? event.MatchesPlayed ?? event.matches ?? event.Matches, 0)));
   const results = parseResults(event.results ?? event.Results ?? event.resultData ?? event.ResultData)
     .map((result) => {
       const r = result as EventResult & Record<string, unknown>;
       const kills = Math.max(0, Math.floor(asNumber(r.kills ?? r.Kills, 0)));
       const booyahs = Math.max(0, Math.floor(asNumber(r.booyahs ?? r.Booyahs, 0)));
       const positionPoints = Math.max(0, asNumber(r.positionPoints ?? r.PositionPoints, 0));
-      const rank = Math.max(1, Math.floor(asNumber(r.rank ?? r.Rank, 1)));
+      const rank = Math.max(1, Math.floor(asNumber(r.rank ?? r.Rank ?? r.position ?? r.Position, 1)));
       const rawTeamName = r.teamName ?? r.TeamName ?? r.team ?? r.Team ?? "";
       const rawTeamSlug = r.teamSlug ?? r.TeamSlug;
-      const rawTotal = r.total ?? r.Total;
-
+      const rawTotal = r.total ?? r.Total ?? r.totalPoints ?? r.TotalPoints;
       return {
         teamName: String(rawTeamName).trim(),
         ...(rawTeamSlug ? { teamSlug: String(rawTeamSlug).trim() } : {}),
@@ -89,10 +86,7 @@ function normalizeEvent(event: Record<string, unknown>): TrackedEvent {
     id: String(event.id ?? event.ID ?? event.eventId ?? event.EventID ?? "").trim() || undefined,
     name: String(event.name ?? event.Name ?? event.eventName ?? event.EventName ?? "").trim(),
     organizer: String(event.organizer ?? event.Organizer ?? event.organisedBy ?? event.OrganisedBy ?? "").trim(),
-    teams: Math.max(
-      0,
-      Math.floor(asNumber(event.teams ?? event.Teams ?? event.teamCount ?? event.TeamCount, results.length))
-    ),
+    teams: Math.max(0, Math.floor(asNumber(event.teams ?? event.Teams ?? event.teamCount ?? event.TeamCount, results.length))),
     prize: String(event.prize ?? event.Prize ?? event.prizePool ?? event.PrizePool ?? "").trim(),
     status: String(event.status ?? event.Status ?? "Pending").trim() || "Pending",
     counted: String(event.counted ?? event.Counted ?? event.countedResult ?? event.CountedResult ?? "").trim(),
@@ -121,19 +115,28 @@ async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
   const existingRequest = getSheetReadInFlight();
   if (existingRequest) return normalizeEvents(await existingRequest);
 
-  const rawUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+  const rawUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL?.trim();
   if (!rawUrl) {
     console.error("Tracked events: GOOGLE_SHEETS_WEBHOOK_URL is not configured");
     return null;
   }
 
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    console.error("Tracked events: GOOGLE_SHEETS_WEBHOOK_URL is invalid");
+    return null;
+  }
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec\/?$/i.test(url.origin + url.pathname)) {
+    console.error("Tracked events: GOOGLE_SHEETS_WEBHOOK_URL must point to the deployed /exec web app");
+    return null;
+  }
+
   const request = (async () => {
     const controller = new AbortController();
-    // Keep the events-only route consistent with the shared live Sheet reader.
-    // Do not fail after 6s while the canonical Apps Script is still working.
-    const timeout = setTimeout(() => controller.abort(), 9000);
+    const timeout = setTimeout(() => controller.abort(), SHEET_TIMEOUT_MS);
     try {
-      const url = new URL(rawUrl);
       url.searchParams.set("_tnffm_events", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
       const response = await fetch(url.toString(), {
         method: "GET",
@@ -150,9 +153,11 @@ async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
         console.error(`Tracked events Google Sheets read failed: HTTP ${response.status}`);
         return null;
       }
-
       const payload = await response.json();
-      if (!payload || payload.ok === false) return null;
+      if (!payload || payload.ok === false) {
+        console.error(`Tracked events Google Sheets returned an unsuccessful response: ${String(payload?.message || payload?.error || "unknown error")}`);
+        return null;
+      }
       setCachedSheetPayload(payload);
       return payload;
     } catch (error) {
