@@ -1,6 +1,5 @@
 import { getRankedTeams, getRegisteredTeams } from "./google-sheets";
-import { getPublishedTrackedEvents } from "./events";
-import { rankTeams, slugify } from "./rankings";
+import { slugify } from "./rankings";
 import type { RankedTeam, RawTeam } from "./types";
 
 function mergeProfile(ranking: RankedTeam, profile?: RawTeam): RankedTeam {
@@ -33,22 +32,16 @@ function buildProfileMaps(registered: RawTeam[]) {
   return { byId, byName };
 }
 
-async function getLivePublicRanking(registered: RawTeam[]): Promise<RankedTeam[]> {
-  const events = await getPublishedTrackedEvents();
-  const hasPublishedResults = events.some(
-    (event) =>
-      Array.isArray(event.results) &&
-      event.results.length > 0 &&
-      Number(String(event.prize ?? "").replace(/[^0-9.]/g, "")) > 1000
-  );
-
-  if (!hasPublishedResults) return getRankedTeams();
-  return rankTeams(registered, events);
+// Google Sheets Community Rankings is the single public ranking source of truth.
+// Published event results are inputs to the admin workflow, not an instruction
+// for the public site to silently replace the published ranking table.
+async function getLivePublicRanking(): Promise<RankedTeam[]> {
+  return getRankedTeams();
 }
 
 export async function getUnifiedTeamData(): Promise<RankedTeam[]> {
   const registered = await getRegisteredTeams();
-  const ranked = await getLivePublicRanking(registered);
+  const ranked = await getLivePublicRanking();
   const { byId, byName } = buildProfileMaps(registered);
 
   return ranked.map((ranking) => {
@@ -61,7 +54,7 @@ export async function getUnifiedTeamData(): Promise<RankedTeam[]> {
 
 export async function getPublicTeamData(): Promise<RankedTeam[]> {
   const registered = await getRegisteredTeams();
-  const ranked = await getLivePublicRanking(registered);
+  const ranked = await getLivePublicRanking();
   const { byId, byName } = buildProfileMaps(registered);
   const rankedById = new Map<string, RankedTeam>();
   const rankedByName = new Map<string, RankedTeam>();
@@ -73,35 +66,38 @@ export async function getPublicTeamData(): Promise<RankedTeam[]> {
     if (name) rankedByName.set(name, ranking);
   }
 
-  return registered.map((profile) => {
-    const id = String((profile as any).teamId ?? (profile as any).id ?? "").trim();
-    const name = String(profile.teamName ?? "").trim().toLowerCase();
-    const ranking = (id && rankedById.get(id)) || rankedByName.get(name);
+  return registered
+    .filter((profile) => String((profile as any).status ?? "Active").toLowerCase() !== "hidden")
+    .filter((profile) => String((profile as any).registrationStatus ?? "Registered").toLowerCase() !== "hidden")
+    .map((profile) => {
+      const id = String((profile as any).teamId ?? (profile as any).id ?? "").trim();
+      const name = String(profile.teamName ?? "").trim().toLowerCase();
+      const ranking = (id && rankedById.get(id)) || rankedByName.get(name);
 
-    if (ranking) return mergeProfile(ranking, profile);
+      if (ranking) return mergeProfile(ranking, profile);
 
-    return {
-      ...profile,
-      teamName: profile.teamName,
-      logoUrl: profile.logoUrl || "",
-      slug: (profile as any).slug || slugify(profile.teamName),
-      rank: 0,
-      previousRank: 0,
-      communityPoints: 0,
-      top3Finishes: 0,
-      badge: "",
-      lastUpdated: String((profile as any).lastUpdated ?? ""),
-      championships: Number(profile.championships) || 0,
-      runnerUp: Number(profile.runnerUp) || 0,
-      secondRunnerUp: Number(profile.secondRunnerUp) || 0,
-      grandFinals: Number(profile.grandFinals) || 0,
-      kills: Number(profile.kills) || 0,
-      booyahs: Number(profile.booyahs) || 0,
-      winRate: Number(profile.winRate) || 0,
-      killRatio: Number(profile.killRatio) || 0,
-      rankingEligible: Boolean(profile.rankingEligible),
-    } as RankedTeam;
-  });
+      return {
+        ...profile,
+        teamName: profile.teamName,
+        logoUrl: profile.logoUrl || "",
+        slug: (profile as any).slug || slugify(profile.teamName),
+        rank: 0,
+        previousRank: 0,
+        communityPoints: 0,
+        top3Finishes: 0,
+        badge: "",
+        lastUpdated: String((profile as any).lastUpdated ?? ""),
+        championships: Number(profile.championships) || 0,
+        runnerUp: Number(profile.runnerUp) || 0,
+        secondRunnerUp: Number(profile.secondRunnerUp) || 0,
+        grandFinals: Number(profile.grandFinals) || 0,
+        kills: Number(profile.kills) || 0,
+        booyahs: Number(profile.booyahs) || 0,
+        winRate: Number(profile.winRate) || 0,
+        killRatio: Number(profile.killRatio) || 0,
+        rankingEligible: Boolean(profile.rankingEligible),
+      } as RankedTeam;
+    });
 }
 
 export async function getUnifiedTeamBySlug(slug: string) {
