@@ -44,7 +44,7 @@ export default async function CommunityTeamsPage() {
             {teams.map((team) => {
               const slug = String((team as any).slug || slugify(team.teamName));
               return (
-                <Link key={String((team as any).teamId || team.teamName) + slug} href={`/team-details?team=${encodeURIComponent(slug)}`} className="group rounded-2xl border border-white/10 bg-white/[0.025] p-5 transition hover:-translate-y-1 hover:border-gold/40 hover:bg-gold/[0.04]">
+                <Link key={String((team as any).teamId || team.teamName) + slug} href={`/teams/${encodeURIComponent(slug)}`} className="group rounded-2xl border border-white/10 bg-white/[0.025] p-5 transition hover:-translate-y-1 hover:border-gold/40 hover:bg-gold/[0.04]">
                   <div className="flex items-center gap-4">
                     <TeamLogo src={team.logoUrl} name={team.teamName} size={64} />
                     <div className="min-w-0">
