@@ -7,12 +7,53 @@ import {
 
 const COLLABORATOR_TIMEOUT_MS = 15000;
 
+export type Collaborator = {
+  collaboratorId: string;
+  name: string;
+  role: string;
+  status: string;
+  contact: string;
+  logoUrl: string;
+  url: string;
+  instagram: string;
+  updatedAt: string;
+};
+
+function value(item: any, ...keys: string[]) {
+  for (const key of keys) {
+    const result = item?.[key];
+    if (result !== undefined && result !== null && String(result).trim() !== "") return String(result).trim();
+  }
+  return "";
+}
+
+export function normalizeCollaborator(item: any): Collaborator {
+  return {
+    collaboratorId: value(item, "collaboratorId", "Collaborator ID", "id"),
+    name: value(item, "name", "Name"),
+    role: value(item, "role", "Role") || "Partner",
+    status: value(item, "status", "Status") || "Active",
+    contact: value(item, "contact", "Contact", "email", "Email"),
+    logoUrl: value(item, "logoUrl", "logoURL", "LogoURL", "logo", "Logo"),
+    url: value(item, "url", "website", "Website", "webSite"),
+    instagram: value(item, "instagram", "Instagram", "instagramUrl", "Instagram URL"),
+    updatedAt: value(item, "updatedAt", "UpdatedAt", "updated")
+  };
+}
+
 function isHiddenStatus(value: unknown) {
   const status = String(value ?? "").trim().toLowerCase();
   return ["hidden", "draft", "unpublished", "rejected", "inactive", "disabled"].includes(status);
 }
 
-async function fetchCollaboratorsFromGoogleSheets(): Promise<any[] | null> {
+function normalizeCollaborators(items: unknown) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map(normalizeCollaborator)
+    .filter((item) => item.name && !isHiddenStatus(item.status));
+}
+
+async function fetchCollaboratorsFromGoogleSheets(): Promise<Collaborator[] | null> {
   const rawUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL?.trim();
   if (!rawUrl) {
     console.error("Collaborators: GOOGLE_SHEETS_WEBHOOK_URL is not configured");
@@ -33,16 +74,12 @@ async function fetchCollaboratorsFromGoogleSheets(): Promise<any[] | null> {
   }
 
   const cached = getCachedSheetPayload();
-  if (cached && Array.isArray(cached.collaborators)) {
-    return cached.collaborators.filter((item: any) => !isHiddenStatus(item?.status ?? item?.Status));
-  }
+  if (cached && Array.isArray(cached.collaborators)) return normalizeCollaborators(cached.collaborators);
 
   const existingRequest = getSheetReadInFlight();
   if (existingRequest) {
     const payload = await existingRequest;
-    return Array.isArray(payload?.collaborators)
-      ? payload.collaborators.filter((item: any) => !isHiddenStatus(item?.status ?? item?.Status))
-      : null;
+    return Array.isArray(payload?.collaborators) ? normalizeCollaborators(payload.collaborators) : null;
   }
 
   const request = (async () => {
@@ -62,9 +99,7 @@ async function fetchCollaboratorsFromGoogleSheets(): Promise<any[] | null> {
       });
       if (!response.ok) throw new Error(`Google Apps Script returned HTTP ${response.status}`);
       const payload = await response.json();
-      if (!payload || payload.ok === false) {
-        throw new Error(String(payload?.message || "Google Apps Script returned an unsuccessful response"));
-      }
+      if (!payload || payload.ok === false) throw new Error(String(payload?.message || "Google Apps Script returned an unsuccessful response"));
       setCachedSheetPayload(payload);
       return payload;
     } catch (error) {
@@ -77,14 +112,9 @@ async function fetchCollaboratorsFromGoogleSheets(): Promise<any[] | null> {
 
   setSheetReadInFlight(request);
   const payload = await request;
-  return Array.isArray(payload?.collaborators)
-    ? payload.collaborators.filter((item: any) => !isHiddenStatus(item?.status ?? item?.Status))
-    : null;
+  return Array.isArray(payload?.collaborators) ? normalizeCollaborators(payload.collaborators) : null;
 }
 
-export async function getCollaborators() {
-  // Google Sheets is the sole source of truth. Never silently fall back to
-  // bundled JSON because that can display stale/fake collaborators after a
-  // successful admin update.
+export async function getCollaborators(): Promise<Collaborator[]> {
   return (await fetchCollaboratorsFromGoogleSheets()) ?? [];
 }
