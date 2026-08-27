@@ -5,6 +5,29 @@ export const revalidate = 0;
 
 const REQUEST_TIMEOUT_MS = 20000;
 
+const collaboratorValue = (item: any, ...keys: string[]) => {
+  for (const key of keys) {
+    const value = item?.[key];
+    if (value !== undefined && value !== null && String(value).trim() !== "") return String(value).trim();
+  }
+  return "";
+};
+
+function normalizeCollaborators(items: unknown) {
+  if (!Array.isArray(items)) return [];
+  return items.map((item: any) => ({
+    collaboratorId: collaboratorValue(item, "collaboratorId", "Collaborator ID", "id"),
+    name: collaboratorValue(item, "name", "Name"),
+    role: collaboratorValue(item, "role", "Role") || "Partner",
+    status: collaboratorValue(item, "status", "Status") || "Active",
+    contact: collaboratorValue(item, "contact", "Contact", "email", "Email"),
+    logoUrl: collaboratorValue(item, "logoUrl", "logoURL", "LogoURL", "logo", "Logo"),
+    url: collaboratorValue(item, "url", "website", "Website", "webSite"),
+    instagram: collaboratorValue(item, "instagram", "Instagram", "instagramUrl", "Instagram URL"),
+    updatedAt: collaboratorValue(item, "updatedAt", "UpdatedAt", "updated"),
+  }));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const expected = process.env.ADMIN_PASSWORD;
@@ -51,7 +74,7 @@ export async function GET(request: NextRequest) {
         events: Array.isArray(result.events) ? result.events : [],
         rankingResults: Array.isArray(result.rankingResults) ? result.rankingResults : Array.isArray(result.results) ? result.results : [],
         results: Array.isArray(result.results) ? result.results : Array.isArray(result.rankingResults) ? result.rankingResults : [],
-        collaborators: Array.isArray(result.collaborators) ? result.collaborators : [],
+        collaborators: normalizeCollaborators(result.collaborators),
         news: Array.isArray(result.news) ? result.news : [],
         serverTime: typeof result.serverTime === "string" ? result.serverTime : new Date().toISOString(),
       }, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0", Pragma: "no-cache" } });
