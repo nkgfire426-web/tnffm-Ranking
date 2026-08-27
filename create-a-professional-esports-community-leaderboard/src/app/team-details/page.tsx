@@ -1,12 +1,13 @@
 import { Header } from "@/components/Header";
 import { TeamDetailsClient } from "@/components/TeamDetailsClient";
 import { getPublicRegisteredTeams } from "@/lib/public-sheet";
+import type { RawTeam } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function TeamDetailsPage() {
-  let teams = [];
+  let teams: RawTeam[] = [];
   let loadError = "";
   try {
     teams = await getPublicRegisteredTeams();
