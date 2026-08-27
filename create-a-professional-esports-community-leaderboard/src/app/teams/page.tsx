@@ -3,12 +3,13 @@ import { Header } from "@/components/Header";
 import { TeamLogo } from "@/components/TeamLogo";
 import { getPublicRegisteredTeams } from "@/lib/public-sheet";
 import { slugify } from "@/lib/rankings";
+import type { RawTeam } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function CommunityTeamsPage() {
-  let teams = [];
+  let teams: RawTeam[] = [];
   let loadError = "";
   try {
     teams = await getPublicRegisteredTeams();
