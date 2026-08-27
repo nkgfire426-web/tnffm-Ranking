@@ -20,15 +20,26 @@ export default async function AdminPage() {
   const collaborators = await getCollaborators();
 
   return (
-    <main>
+    <main className="min-h-screen overflow-x-hidden">
       <Header />
-      <div className="mx-auto max-w-7xl px-4 pt-4 sm:px-6 lg:px-8">
-        <Link href="/admin/news" className="inline-flex min-h-10 items-center rounded-lg border border-gold/30 bg-black/30 px-3 py-2 text-xs font-bold text-gold transition hover:bg-gold hover:text-black sm:px-4 sm:py-3 sm:text-sm">
-          Tournament News & Updates
+      <div className="mx-auto w-full max-w-7xl px-3 pt-3 sm:px-6 sm:pt-4 lg:px-8">
+        <Link
+          href="/admin/news"
+          className="flex min-h-11 w-full items-center justify-center rounded-xl border border-gold/30 bg-black/30 px-4 py-3 text-center text-xs font-bold text-gold transition hover:bg-gold hover:text-black sm:inline-flex sm:w-auto sm:text-sm"
+        >
+          Tournament News &amp; Updates
         </Link>
-        <AdminTeamRemoval initialTeams={teams} />
+        <div className="mt-3 overflow-x-auto rounded-xl sm:overflow-visible">
+          <AdminTeamRemoval initialTeams={teams} />
+        </div>
       </div>
-      <AdminDashboardStable initialTeams={teams} initialEvents={events} initialCollaborators={collaborators} />
+      <div className="w-full min-w-0 overflow-x-hidden">
+        <AdminDashboardStable
+          initialTeams={teams}
+          initialEvents={events}
+          initialCollaborators={collaborators}
+        />
+      </div>
     </main>
   );
 }
