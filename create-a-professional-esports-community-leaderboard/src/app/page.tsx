@@ -21,7 +21,7 @@ export default async function Home() {
   ]);
 
   return (
-    <main>
+    <main className="dashboard-inspired-site">
       <Header />
       <Hero teams={teams} news={news} />
       <StatsCards teams={teams} />
