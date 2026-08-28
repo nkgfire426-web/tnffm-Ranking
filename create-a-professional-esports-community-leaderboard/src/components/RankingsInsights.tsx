@@ -1,3 +1,5 @@
+"use client";
+
 import { Clock, ExternalLink, Sigma, TrendingUp } from "lucide-react";
 import type { RankedTeam } from "@/lib/types";
 import type { TournamentNews } from "@/lib/google-sheets";
