@@ -1,568 +1,68 @@
-/*
- * TNFFM COMMUNITY RANKING — GOOGLE APPS SCRIPT
- * Canonical Google Sheets storage API for the current TNFFM web app.
- *
- * Deploy as a Web App:
- *   Execute as: Me
- *   Who has access: Anyone
- *
- * Required Script Property:
- *   SPREADSHEET_ID = target Google Sheet ID
- * Optional:
- *   DRIVE_FOLDER_ID = Google Drive folder ID for logo uploads
+/* TNFFM COMMUNITY RANKING — GOOGLE APPS SCRIPT
+ * Canonical storage API for the current TNFFM web application.
+ * Deploy as Web App: Execute as Me + Anyone.
+ * Required Script Property: SPREADSHEET_ID
+ * Optional Script Property: DRIVE_FOLDER_ID
  */
-
-var VERSION = 'TNFFM-2026.08.28-STABLE-1';
-var MAX_ROWS = 5000;
-var MAX_BODY_CHARS = 15000000;
-
-var TABS = {
-  TEAMS: 'Teams',
-  ROSTERS: 'Team Rosters',
-  RANKINGS: 'Community Rankings',
-  EVENTS: 'Events',
-  RESULTS: 'Event Results',
-  NEWS: 'TournamentNews',
-  COLLAB: 'Collaborators',
-  ACCOUNTS: 'TeamAccounts',
-  SUBMISSIONS: 'Submissions',
-  FEEDBACK: 'Feedback'
-};
-
-var HEADERS = {};
-HEADERS[TABS.TEAMS] = [
-  'Team ID','Team Name','Slug','Logo URL','Banner URL','Description',
-  'Mobile Number','Status','Registration Status','Created At','Updated At'
-];
-HEADERS[TABS.ROSTERS] = [
-  'Player ID','Team ID','Team Name','Player Name','UID','Role',
-  'Player Logo URL','Status','Created At','Updated At'
-];
-HEADERS[TABS.RANKINGS] = [
-  'Rank','Team ID','Team Name','Slug','Events Played','Championships',
-  'Runner-Up','2nd Runner-Up','Top 5 Finishes','Community Score','Kills',
-  'Booyahs','Kill Ratio','Booyah Ratio','Position Points','Total Points',
-  'Matches Played','Grand Finals','Win Rate','Eligible','Status','Updated At'
-];
-HEADERS[TABS.EVENTS] = [
-  'Event ID','Name','Organizer','Teams','Prize','Status','Counted','Date',
-  'Notes','Matches Played','Published','Results','Created At','Updated At'
-];
-HEADERS[TABS.RESULTS] = [
-  'Result ID','Event ID','Event Name','Team ID','Team Name','Position',
-  'Kills','Booyahs','Position Points','Kill Points','Total Points',
-  'Proof URL','Verified','Updated At'
-];
-HEADERS[TABS.NEWS] = [
-  'ID','Title','Description','Date','Type','Status','ImageURL','Link','UpdatedAt'
-];
-HEADERS[TABS.COLLAB] = [
-  'Collaborator ID','Name','Role','Status','Contact','LogoURL','Website',
-  'Instagram','UpdatedAt'
-];
-HEADERS[TABS.ACCOUNTS] = [
-  'Username','PasswordHash','TeamSlug','Email','Status','CreatedAt','UpdatedAt'
-];
-HEADERS[TABS.SUBMISSIONS] = [
-  'SubmissionID','Username','TeamSlug','Team','TournamentName','TournamentDate',
-  'OrganizerName','PrizePool','FinalPosition','FinalLeaderboard','ProofURL',
-  'Status','ReviewNotes','ReviewedBy','ReviewedAt','CreatedAt'
-];
-HEADERS[TABS.FEEDBACK] = [
-  'FeedbackID','Username','TeamSlug','Team','Message','Status','AdminReply',
-  'CreatedAt','UpdatedAt'
-];
-
-function clean_(v) {
-  return v === null || v === undefined ? '' : String(v).trim();
-}
-
-function now_() {
-  return new Date().toISOString();
-}
-
-function num_(v) {
-  var n = Number(v);
-  return isFinite(n) ? n : 0;
-}
-
-function int_(v) {
-  return Math.max(0, Math.floor(num_(v)));
-}
-
-function json_(data) {
-  return ContentService.createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function ok_(data) {
-  var out = { ok: true, version: VERSION };
-  if (data) Object.keys(data).forEach(function(k) { out[k] = data[k]; });
-  return json_(out);
-}
-
-function fail_(message, code) {
-  return json_({
-    ok: false,
-    version: VERSION,
-    code: code || 'TNFFM_ERROR',
-    message: clean_(message) || 'Unknown Google Sheets error.'
-  });
-}
-
-function errorMessage_(e) {
-  return e && e.message ? e.message : String(e || 'Unknown error.');
-}
-
-function bool_(v) {
-  if (v === true) return true;
-  var x = clean_(v).toLowerCase();
-  return x === 'true' || x === 'yes' || x === '1' ||
-    x === 'published' || x === 'active';
-}
-
-function safeJson_(v, fallback) {
-  if (Array.isArray(v)) return v;
-  var x = clean_(v);
-  if (!x) return fallback;
-  try { return JSON.parse(x); } catch (e) { return fallback; }
-}
-
-function prop_(obj, names) {
-  if (!obj) return '';
-  for (var i = 0; i < names.length; i++) {
-    if (obj[names[i]] !== undefined && obj[names[i]] !== null) return obj[names[i]];
-  }
-  return '';
-}
-
-function slugify_(name) {
-  var s = clean_(name).toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 45);
-  return s || 'team';
-}
-
-function sanitizeCell_(value) {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'object') return JSON.stringify(value);
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  var x = String(value);
-  // Prevent externally supplied values from becoming Sheets formulas.
-  if (/^[=+\-@]/.test(x)) return "'" + x;
-  return x;
-}
-
-function getSpreadsheet_() {
-  var id = clean_(PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID'));
-  if (id) {
-    try {
-      return SpreadsheetApp.openById(id);
-    } catch (e) {
-      throw new Error('Configured SPREADSHEET_ID could not be opened: ' + errorMessage_(e));
-    }
-  }
-  var active = SpreadsheetApp.getActiveSpreadsheet();
-  if (active) return active;
-  throw new Error('Google Sheet is not configured. Set Script Property SPREADSHEET_ID.');
-}
-
-function getSheet_(name) {
-  var ss = getSpreadsheet_();
-  var sheet = ss.getSheetByName(name);
-  return sheet || ss.insertSheet(name);
-}
-
-function ensureSheet_(sheet, headers) {
-  if (sheet.getMaxColumns() < headers.length) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
-  }
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-  sheet.setFrozenRows(1);
-  return sheet;
-}
-
-function getHeaders_(sheet) {
-  if (!sheet || sheet.getLastColumn() < 1) return [];
-  return sheet.getRange(1, 1, 1, sheet.getLastColumn())
-    .getDisplayValues()[0]
-    .map(clean_);
-}
-
-function getRows_(sheet) {
-  if (!sheet || sheet.getLastRow() < 2 || sheet.getLastColumn() < 1) return [];
-  var count = Math.min(sheet.getLastRow() - 1, MAX_ROWS - 1);
-  return sheet.getRange(2, 1, count, sheet.getLastColumn()).getDisplayValues();
-}
-
-function clearData_(sheet) {
-  if (sheet.getLastRow() > 1) {
-    sheet.getRange(2, 1, sheet.getLastRow() - 1, Math.max(sheet.getLastColumn(), 1)).clearContent();
-  }
-}
-
-function normalizeKey_(key) {
-  var map = {
-    'Team':'teamName','Team Name':'teamName','team':'teamName',
-    'Team ID':'teamId','TeamId':'teamId','team_id':'teamId',
-    'Slug':'slug','PreviousRank':'previousRank','Previous Rank':'previousRank',
-    'CommunityPoints':'communityPoints','Community Score':'communityScore','CommunityScore':'communityScore',
-    'Badge':'badge','Logo URL':'logoUrl','LogoURL':'logoUrl',
-    'Banner URL':'bannerUrl','BannerURL':'bannerUrl',
-    'Kills':'kills','Booyahs':'booyahs','Championships':'championships',
-    'RunnerUp':'runnerUp','Runner-Up':'runnerUp','SecondRunnerUp':'secondRunnerUp',
-    '2nd Runner-Up':'secondRunnerUp','Top5Finishes':'top5Finishes','Top 5 Finishes':'top5Finishes',
-    'FinalistFinishes':'finalistFinishes','OfficialMatchFinalists':'officialMatchFinalists',
-    'EventsPlayed':'eventsPlayed','Events Played':'eventsPlayed','GrandFinals':'grandFinals',
-    'WinRate':'winRate','Win Rate':'winRate','KillRatio':'killRatio','Kill Ratio':'killRatio',
-    'BooyahRatio':'booyahRatio','Booyah Ratio':'booyahRatio',
-    'PositionPoints':'positionPoints','Position Points':'positionPoints',
-    'TotalPoints':'totalPoints','Total Points':'totalPoints','MatchesPlayed':'matchesPlayed',
-    'Matches Played':'matchesPlayed','Players':'players','Status':'status',
-    'RegistrationStatus':'registrationStatus','Registration Status':'registrationStatus',
-    'Description':'description','Mobile Number':'mobileNumber','LastUpdated':'lastUpdated',
-    'Last Updated':'lastUpdated','Eligible':'eligible',
-    'Event ID':'eventId','EventId':'eventId','Event Name':'eventName',
-    'Name':'name','Organizer':'organizer','Teams':'teams','Team Count':'teams',
-    'Prize':'prize','Prize Pool':'prize','Date':'date','Event Date':'date',
-    'Notes':'notes','Counted':'counted','Published':'published','Results':'results',
-    'ID':'id','Title':'title','Type':'type','ImageURL':'imageUrl','Image URL':'imageUrl','Link':'link',
-    'Result ID':'resultId','ResultId':'resultId','Position':'position','Total':'total',
-    'Kill Points':'killPoints','Proof URL':'proofUrl','Verified':'verified',
-    'Player ID':'playerId','Player Name':'playerName','UID':'uid','Role':'role',
-    'Player Logo URL':'playerLogoUrl','Username':'username','PasswordHash':'passwordHash',
-    'Email':'email','CreatedAt':'createdAt','Created At':'createdAt',
-    'UpdatedAt':'updatedAt','Updated At':'updatedAt',
-    'SubmissionID':'submissionId','FeedbackID':'feedbackId','Collaborator ID':'collaboratorId',
-    'ReviewNotes':'reviewNotes','ReviewedBy':'reviewedBy','ReviewedAt':'reviewedAt',
-    'TournamentName':'tournamentName','TournamentDate':'tournamentDate',
-    'OrganizerName':'organizerName','PrizePool':'prizePool','FinalPosition':'finalPosition',
-    'FinalLeaderboard':'finalLeaderboard','ProofURL':'proofUrl','AdminReply':'adminReply',
-    'Message':'message','Contact':'contact','Website':'website','Instagram':'instagram'
-  };
-  return map[clean_(key)] || clean_(key);
-}
-
-function parseCell_(value) {
-  var x = clean_(value);
-  if (!x) return '';
-  if ((x.charAt(0) === '[' && x.charAt(x.length - 1) === ']') ||
-      (x.charAt(0) === '{' && x.charAt(x.length - 1) === '}')) {
-    try { return JSON.parse(x); } catch (e) {}
-  }
-  if (/^(true|false)$/i.test(x)) return x.toLowerCase() === 'true';
-  return x;
-}
-
-function normalizeReadObject_(raw) {
-  var out = {};
-  Object.keys(raw || {}).forEach(function(key) {
-    out[key] = raw[key];
-    var canonical = normalizeKey_(key);
-    if (canonical && out[canonical] === undefined) out[canonical] = raw[key];
-  });
-  return out;
-}
-
-function readSection_(sheetName) {
-  var sheet = getSheet_(sheetName);
-  var headers = getHeaders_(sheet);
-  if (!headers.length) return [];
-  return getRows_(sheet)
-    .filter(function(row) {
-      return row.some(function(v) { return clean_(v) !== ''; });
-    })
-    .map(function(row) {
-      var raw = {};
-      headers.forEach(function(header, i) {
-        if (header) raw[header] = parseCell_(row[i]);
-      });
-      return normalizeReadObject_(raw);
-    });
-}
-
-function rowsFor_(items, headers) {
-  return items.map(function(item) {
-    var source = item || {};
-    return headers.map(function(header) {
-      var value = source[header];
-      if (value === undefined) value = source[normalizeKey_(header)];
-      return sanitizeCell_(value);
-    });
-  });
-}
-
-function writeSection_(sheetName, items) {
-  if (!Array.isArray(items)) throw new Error(sheetName + ' must be an array.');
-  if (items.length > MAX_ROWS - 1) {
-    throw new Error(sheetName + ' exceeds the maximum of ' + (MAX_ROWS - 1) + ' records.');
-  }
-
-  var sheet = getSheet_(sheetName);
-  var headers = HEADERS[sheetName] || getHeaders_(sheet);
-  if (!headers.length) headers = ['ID'];
-  ensureSheet_(sheet, headers);
-
-  var rows = rowsFor_(items, headers);
-  clearData_(sheet);
-  if (rows.length) sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-  SpreadsheetApp.flush();
-}
-
-function ensureAllSheets_() {
-  var ss = getSpreadsheet_();
-  Object.keys(HEADERS).forEach(function(name) {
-    var sheet = ss.getSheetByName(name) || ss.insertSheet(name);
-    ensureSheet_(sheet, HEADERS[name]);
-  });
-  SpreadsheetApp.flush();
-}
-
-function setupTNFFM() {
-  ensureAllSheets_();
-  return ok_({
-    message: 'TNFFM Google Sheet structure is ready.',
-    tabs: Object.keys(HEADERS)
-  });
-}
-
-function setupSheets() {
-  return setupTNFFM();
-}
-
-function onOpen() {
-  try { ensureAllSheets_(); } catch (e) { console.log(errorMessage_(e)); }
-}
-
-function readAll_() {
-  var results = readSection_(TABS.RESULTS);
-  return {
-    teams: readSection_(TABS.TEAMS),
-    rankings: readSection_(TABS.RANKINGS),
-    events: readSection_(TABS.EVENTS),
-    rankingResults: results,
-    results: results,
-    news: readSection_(TABS.NEWS),
-    collaborators: readSection_(TABS.COLLAB),
-    accounts: readSection_(TABS.ACCOUNTS),
-    submissions: readSection_(TABS.SUBMISSIONS),
-    feedback: readSection_(TABS.FEEDBACK),
-    serverTime: now_(),
-    version: VERSION
-  };
-}
-
-function keyFor_(section, item) {
-  var x = item || {};
-  if (section === 'teams') {
-    return clean_(prop_(x, ['teamId','Team ID','id'])) ||
-      'name:' + clean_(prop_(x, ['teamName','Team Name','Team','team'])).toLowerCase();
-  }
-  if (section === 'rankings') {
-    return clean_(prop_(x, ['teamId','Team ID'])) ||
-      'name:' + clean_(prop_(x, ['teamName','Team Name','Team'])).toLowerCase();
-  }
-  if (section === 'events') {
-    return clean_(prop_(x, ['eventId','Event ID','id'])) ||
-      'name:' + clean_(prop_(x, ['name','Event Name','Name'])).toLowerCase();
-  }
-  if (section === 'rankingResults') {
-    return clean_(prop_(x, ['resultId','Result ID','id'])) || [
-      clean_(prop_(x, ['eventId','Event ID'])),
-      clean_(prop_(x, ['teamId','Team ID'])),
-      clean_(prop_(x, ['position','Position']))
-    ].join('|');
-  }
-  if (section === 'news') {
-    return clean_(prop_(x, ['id','ID'])) ||
-      'title:' + clean_(prop_(x, ['title','Title'])).toLowerCase();
-  }
-  if (section === 'collaborators') {
-    return clean_(prop_(x, ['collaboratorId','Collaborator ID','id'])) ||
-      'name:' + clean_(prop_(x, ['name','Name'])).toLowerCase();
-  }
-  if (section === 'accounts') {
-    return clean_(prop_(x, ['username','Username'])) || clean_(prop_(x, ['email','Email']));
-  }
-  if (section === 'submissions') {
-    return clean_(prop_(x, ['submissionId','SubmissionID'])) || [
-      clean_(prop_(x, ['username','Username'])),
-      clean_(prop_(x, ['tournamentName','TournamentName'])),
-      clean_(prop_(x, ['tournamentDate','TournamentDate']))
-    ].join('|');
-  }
-  if (section === 'feedback') {
-    return clean_(prop_(x, ['feedbackId','FeedbackID'])) || [
-      clean_(prop_(x, ['username','Username'])),
-      clean_(prop_(x, ['createdAt','CreatedAt'])),
-      clean_(prop_(x, ['message','Message']))
-    ].join('|');
-  }
-  return JSON.stringify(x);
-}
-
-function verifySection_(section, expected, actual) {
-  if (!Array.isArray(actual)) throw new Error(section + ': read-back returned an invalid array.');
-  var actualKeys = {};
-  actual.forEach(function(item) {
-    var key = keyFor_(section, item);
-    if (key) actualKeys[key] = true;
-  });
-  var missing = [];
-  expected.forEach(function(item) {
-    var key = keyFor_(section, item);
-    if (key && !actualKeys[key]) missing.push(key);
-  });
-  if (missing.length) {
-    throw new Error(section + ' write verification failed. Missing record: ' + missing[0]);
-  }
-  return { expected: expected.length, actual: actual.length, match: true };
-}
-
-function normalizeIncoming_(payload) {
-  var out = {};
-  if (Array.isArray(payload.teams)) out.teams = payload.teams;
-  if (Array.isArray(payload.rankings)) out.rankings = payload.rankings;
-  if (Array.isArray(payload.events)) out.events = payload.events;
-  // Both names are accepted by the current web application.
-  if (Array.isArray(payload.rankingResults)) out.rankingResults = payload.rankingResults;
-  else if (Array.isArray(payload.results)) out.rankingResults = payload.results;
-  if (Array.isArray(payload.news)) out.news = payload.news;
-  if (Array.isArray(payload.collaborators)) out.collaborators = payload.collaborators;
-  if (Array.isArray(payload.accounts)) out.accounts = payload.accounts;
-  if (Array.isArray(payload.submissions)) out.submissions = payload.submissions;
-  if (Array.isArray(payload.feedback)) out.feedback = payload.feedback;
-  return out;
-}
-
-function doGet(e) {
-  try {
-    return ok_(readAll_());
-  } catch (err) {
-    console.error(err);
-    return fail_(errorMessage_(err), 'READ_FAILED');
-  }
-}
-
-function doPost(e) {
-  var lock = LockService.getScriptLock();
-  try {
-    if (!e || !e.postData || !e.postData.contents) {
-      return fail_('Empty request body.', 'EMPTY_BODY');
-    }
-    if (e.postData.contents.length > MAX_BODY_CHARS) {
-      return fail_('Request is too large.', 'BODY_TOO_LARGE');
-    }
-
-    lock.waitLock(30000);
-
-    var payload;
-    try {
-      payload = JSON.parse(e.postData.contents);
-    } catch (parseError) {
-      return fail_('Request body is not valid JSON.', 'INVALID_JSON');
-    }
-
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-      return fail_('Request body must be a JSON object.', 'INVALID_PAYLOAD');
-    }
-
-    if (payload.action === 'setup' || payload.action === 'setupSheets') {
-      return setupTNFFM();
-    }
-
-    if (payload.action === 'health' || payload.action === 'healthCheck') {
-      return healthCheck();
-    }
-
-    if (payload.action === 'uploadLogo') {
-      return ok_({ url: uploadLogo_(payload.dataUrl, payload.fileName) });
-    }
-
-    var incoming = normalizeIncoming_(payload);
-    var sections = Object.keys(incoming);
-    if (!sections.length) {
-      return fail_('No supported data section was supplied.', 'NO_SECTIONS');
-    }
-
-    ensureAllSheets_();
-
-    var saved = [];
-    sections.forEach(function(section) {
-      var sheetName = section === 'rankingResults' ? TABS.RESULTS :
-        TABS[section.toUpperCase()];
-      if (!sheetName) throw new Error('Unsupported section: ' + section);
-      writeSection_(sheetName, incoming[section]);
-      saved.push(section);
-    });
-
-    // The save response is not successful until the exact records can be
-    // read back from the spreadsheet.
-    var fresh = readAll_();
-    var verification = {};
-    sections.forEach(function(section) {
-      verification[section] = verifySection_(section, incoming[section], fresh[section]);
-    });
-
-    return ok_({
-      saved: true,
-      verified: true,
-      savedSections: saved,
-      savedAt: now_(),
-      verification: verification,
-      data: fresh
-    });
-  } catch (err) {
-    console.error(err);
-    return fail_(errorMessage_(err), 'WRITE_FAILED');
-  } finally {
-    try { lock.releaseLock(); } catch (e) {}
-  }
-}
-
-function uploadLogo_(dataUrl, fileName) {
-  if (typeof dataUrl !== 'string' || dataUrl.indexOf('data:image/') !== 0) {
-    throw new Error('Invalid image data.');
-  }
-  if (dataUrl.length > 4000000) throw new Error('Image is too large.');
-  var match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-  if (!match) throw new Error('Invalid image format.');
-
-  var blob = Utilities.newBlob(
-    Utilities.base64Decode(match[2]),
-    match[1],
-    clean_(fileName || 'tnffm-image').replace(/[^a-zA-Z0-9._-]/g, '-')
-  );
-
-  var folderId = clean_(PropertiesService.getScriptProperties().getProperty('DRIVE_FOLDER_ID'));
-  var folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
-  var file = folder.createFile(blob);
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  return 'https://drive.google.com/uc?export=view&id=' + file.getId();
-}
-
-function setSpreadsheetId(id) {
-  var value = clean_(id);
-  if (!value) throw new Error('Spreadsheet ID required.');
-  SpreadsheetApp.openById(value);
-  PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', value);
-  return ok_({ spreadsheetId: value, message: 'TNFFM spreadsheet configured.' });
-}
-
-function healthCheck() {
-  var ss = getSpreadsheet_();
-  ensureAllSheets_();
-  var counts = {};
-  Object.keys(TABS).forEach(function(key) {
-    var sheet = ss.getSheetByName(TABS[key]);
-    counts[TABS[key]] = sheet && sheet.getLastRow() > 1 ? sheet.getLastRow() - 1 : 0;
-  });
-  return ok_({
-    message: 'TNFFM Apps Script backend is healthy.',
-    spreadsheetId: ss.getId(),
-    spreadsheetName: ss.getName(),
-    counts: counts,
-    checkedAt: now_()
-  });
-}
+var VERSION='TNFFM-2026.08.28-STABLE-2';
+var MAX_ROWS=5000;
+var MAX_BODY_CHARS=15000000;
+var TABS={TEAMS:'Teams',ROSTERS:'Team Rosters',RANKINGS:'Community Rankings',EVENTS:'Events',RESULTS:'Event Results',NEWS:'TournamentNews',COLLAB:'Collaborators',ACCOUNTS:'TeamAccounts',SUBMISSIONS:'Submissions',FEEDBACK:'Feedback'};
+var HEADERS={};
+HEADERS[TABS.TEAMS]=['Team ID','Team Name','Slug','Logo URL','Banner URL','Description','Mobile Number','Status','Registration Status','Created At','Updated At'];
+HEADERS[TABS.ROSTERS]=['Player ID','Team ID','Team Name','Player Name','UID','Role','Player Logo URL','Status','Created At','Updated At'];
+HEADERS[TABS.RANKINGS]=['Rank','Team ID','Team Name','Slug','Events Played','Championships','Runner-Up','2nd Runner-Up','Top 5 Finishes','Community Score','Kills','Booyahs','Kill Ratio','Booyah Ratio','Position Points','Total Points','Matches Played','Grand Finals','Win Rate','Eligible','Status','Updated At'];
+HEADERS[TABS.EVENTS]=['Event ID','Name','Organizer','Teams','Prize','Status','Counted','Date','Notes','Matches Played','Published','Results','Created At','Updated At'];
+HEADERS[TABS.RESULTS]=['Result ID','Event ID','Event Name','Team ID','Team Name','Position','Kills','Booyahs','Position Points','Kill Points','Total Points','Proof URL','Verified','Updated At'];
+HEADERS[TABS.NEWS]=['ID','Title','Description','Date','Type','Status','ImageURL','Link','UpdatedAt'];
+HEADERS[TABS.COLLAB]=['Collaborator ID','Name','Role','Status','Contact','LogoURL','Website','Instagram','UpdatedAt'];
+HEADERS[TABS.ACCOUNTS]=['Username','PasswordHash','TeamSlug','Email','Status','CreatedAt','UpdatedAt'];
+HEADERS[TABS.SUBMISSIONS]=['SubmissionID','Username','TeamSlug','Team','TournamentName','TournamentDate','OrganizerName','PrizePool','FinalPosition','FinalLeaderboard','ProofURL','Status','ReviewNotes','ReviewedBy','ReviewedAt','CreatedAt'];
+HEADERS[TABS.FEEDBACK]=['FeedbackID','Username','TeamSlug','Team','Message','Status','AdminReply','CreatedAt','UpdatedAt'];
+function clean_(v){return v===null||v===undefined?'':String(v).trim();}
+function now_(){return new Date().toISOString();}
+function num_(v){var n=Number(v);return isFinite(n)?n:0;}
+function int_(v){return Math.max(0,Math.floor(num_(v)));}
+function json_(x){return ContentService.createTextOutput(JSON.stringify(x)).setMimeType(ContentService.MimeType.JSON);}
+function ok_(x){var o={ok:true,version:VERSION};if(x)Object.keys(x).forEach(function(k){o[k]=x[k];});return json_(o);}
+function fail_(m,c){return json_({ok:false,version:VERSION,code:c||'TNFFM_ERROR',message:clean_(m)||'Unknown Google Sheets error.'});}
+function err_(e){return e&&e.message?e.message:String(e||'Unknown error.');}
+function prop_(o,names){if(!o)return '';for(var i=0;i<names.length;i++){if(o[names[i]]!==undefined&&o[names[i]]!==null)return o[names[i]];}return '';}
+function bool_(v){if(v===true)return true;var x=clean_(v).toLowerCase();return x==='true'||x==='yes'||x==='1'||x==='published'||x==='active';}
+function safeJson_(v,f){if(Array.isArray(v))return v;var x=clean_(v);if(!x)return f;try{return JSON.parse(x);}catch(e){return f;}}
+function slugify_(v){var s=clean_(v).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,45);return s||'team';}
+function getSpreadsheet_(){var id=clean_(PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID'));if(id){try{return SpreadsheetApp.openById(id);}catch(e){throw new Error('Configured SPREADSHEET_ID could not be opened: '+err_(e));}}var active=SpreadsheetApp.getActiveSpreadsheet();if(active)return active;throw new Error('Google Sheet is not configured. Set Script Property SPREADSHEET_ID.');}
+function getSheet_(name){var ss=getSpreadsheet_(),s=ss.getSheetByName(name);return s||ss.insertSheet(name);}
+function ensureSheet_(s,h){if(s.getMaxColumns()<h.length)s.insertColumnsAfter(s.getMaxColumns(),h.length-s.getMaxColumns());s.getRange(1,1,1,h.length).setValues([h]);s.setFrozenRows(1);}
+function headers_(s){if(!s||s.getLastColumn()<1)return[];return s.getRange(1,1,1,s.getLastColumn()).getDisplayValues()[0].map(clean_);}
+function rows_(s){if(!s||s.getLastRow()<2||s.getLastColumn()<1)return[];var n=Math.min(s.getLastRow()-1,MAX_ROWS-1);return s.getRange(2,1,n,s.getLastColumn()).getDisplayValues();}
+function clear_(s){if(s.getLastRow()>1)s.getRange(2,1,s.getLastRow()-1,Math.max(1,s.getLastColumn())).clearContent();}
+function canonical_(k){var m={'Team':'teamName','Team Name':'teamName','team':'teamName','Team ID':'teamId','TeamId':'teamId','Slug':'slug','PreviousRank':'previousRank','Previous Rank':'previousRank','CommunityPoints':'communityPoints','Community Score':'communityScore','CommunityScore':'communityScore','Badge':'badge','Logo URL':'logoUrl','LogoURL':'logoUrl','Banner URL':'bannerUrl','BannerURL':'bannerUrl','Kills':'kills','Booyahs':'booyahs','Championships':'championships','RunnerUp':'runnerUp','Runner-Up':'runnerUp','SecondRunnerUp':'secondRunnerUp','2nd Runner-Up':'secondRunnerUp','Top5Finishes':'top5Finishes','Top 5 Finishes':'top5Finishes','FinalistFinishes':'finalistFinishes','OfficialMatchFinalists':'officialMatchFinalists','EventsPlayed':'eventsPlayed','Events Played':'eventsPlayed','GrandFinals':'grandFinals','WinRate':'winRate','Win Rate':'winRate','KillRatio':'killRatio','Kill Ratio':'killRatio','BooyahRatio':'booyahRatio','Booyah Ratio':'booyahRatio','PositionPoints':'positionPoints','Position Points':'positionPoints','TotalPoints':'totalPoints','Total Points':'totalPoints','MatchesPlayed':'matchesPlayed','Matches Played':'matchesPlayed','Players':'players','Status':'status','RegistrationStatus':'registrationStatus','Registration Status':'registrationStatus','Description':'description','Mobile Number':'mobileNumber','LastUpdated':'lastUpdated','Last Updated':'lastUpdated','Eligible':'eligible','Event ID':'eventId','EventId':'eventId','Event Name':'eventName','Name':'name','Organizer':'organizer','Teams':'teams','Team Count':'teams','Prize':'prize','Prize Pool':'prize','Date':'date','Event Date':'date','Notes':'notes','Counted':'counted','Published':'published','Results':'results','ID':'id','Title':'title','Type':'type','ImageURL':'imageUrl','Image URL':'imageUrl','Link':'link','Result ID':'resultId','ResultId':'resultId','Position':'position','Total':'total','Kill Points':'killPoints','Proof URL':'proofUrl','Verified':'verified','Player ID':'playerId','Player Name':'playerName','UID':'uid','Role':'role','Player Logo URL':'playerLogoUrl','Username':'username','PasswordHash':'passwordHash','Email':'email','CreatedAt':'createdAt','Created At':'createdAt','UpdatedAt':'updatedAt','Updated At':'updatedAt','SubmissionID':'submissionId','FeedbackID':'feedbackId','Collaborator ID':'collaboratorId','ReviewNotes':'reviewNotes','ReviewedBy':'reviewedBy','ReviewedAt':'reviewedAt','TournamentName':'tournamentName','TournamentDate':'tournamentDate','OrganizerName':'organizerName','PrizePool':'prizePool','FinalPosition':'finalPosition','FinalLeaderboard':'finalLeaderboard','ProofURL':'proofUrl','AdminReply':'adminReply','Message':'message','Contact':'contact','Website':'website','Instagram':'instagram'};return m[clean_(k)]||clean_(k);}
+function parse_(v){var x=clean_(v);if(!x)return'';if((x.charAt(0)==='['&&x.charAt(x.length-1)===']')||(x.charAt(0)==='{'&&x.charAt(x.length-1)==='}')){try{return JSON.parse(x);}catch(e){}}if(/^(true|false)$/i.test(x))return x.toLowerCase()==='true';return x;}
+function readSection_(name){var s=getSheet_(name),h=headers_(s);if(!h.length)return[];return rows_(s).filter(function(r){return r.some(function(v){return clean_(v)!=='';});}).map(function(r){var o={};h.forEach(function(k,i){if(k)o[k]=parse_(r[i]);});var n={};Object.keys(o).forEach(function(k){n[k]=o[k];var c=canonical_(k);if(n[c]===undefined)n[c]=o[k];});return n;});}
+function cell_(v){if(v===null||v===undefined)return'';if(typeof v==='object')return JSON.stringify(v);if(typeof v==='boolean')return v?'true':'false';var x=String(v);return /^[=+\-@]/.test(x)?"'"+x:x;}
+function writeGeneric_(name,items){if(!Array.isArray(items))throw new Error(name+' must be an array.');if(items.length>MAX_ROWS-1)throw new Error(name+' exceeds '+(MAX_ROWS-1)+' records.');var s=getSheet_(name),h=HEADERS[name]||headers_(s);if(!h.length)h=['ID'];ensureSheet_(s,h);var data=items.map(function(item){return h.map(function(k){var v=item[k];if(v===undefined)v=item[canonical_(k)];return cell_(v);});});clear_(s);if(data.length)s.getRange(2,1,data.length,h.length).setValues(data);SpreadsheetApp.flush();}
+function ensureAll_(){var ss=getSpreadsheet_();Object.keys(HEADERS).forEach(function(n){ensureSheet_(ss.getSheetByName(n)||ss.insertSheet(n),HEADERS[n]);});SpreadsheetApp.flush();}
+function setupTNFFM(){ensureAll_();return ok_({message:'TNFFM Google Sheet structure is ready.',tabs:Object.keys(HEADERS)});}
+function setupSheets(){return setupTNFFM();}
+function onOpen(){try{ensureAll_();}catch(e){console.log(err_(e));}}
+function readAll_(){var rr=readSection_(TABS.RESULTS);return{teams:readTeams_(),rankings:readSection_(TABS.RANKINGS),events:readSection_(TABS.EVENTS),rankingResults:rr,results:rr,news:readSection_(TABS.NEWS),collaborators:readSection_(TABS.COLLAB),accounts:readSection_(TABS.ACCOUNTS),submissions:readSection_(TABS.SUBMISSIONS),feedback:readSection_(TABS.FEEDBACK),serverTime:now_(),version:VERSION};}
+function readRosters_(){var out={},a=readSection_(TABS.ROSTERS);a.forEach(function(p){var id=clean_(prop_(p,['teamId','Team ID']));if(!id)return;if(!out[id])out[id]=[];out[id].push({playerId:clean_(prop_(p,['playerId','Player ID'])),name:clean_(prop_(p,['playerName','Player Name','name'])),uid:clean_(prop_(p,['uid','UID'])),role:clean_(prop_(p,['role','Role'])),playerLogoUrl:clean_(prop_(p,['playerLogoUrl','Player Logo URL'])),status:clean_(prop_(p,['status','Status']))||'Active',createdAt:clean_(prop_(p,['createdAt','Created At'])),updatedAt:clean_(prop_(p,['updatedAt','Updated At']))});});return out;}
+function readTeams_(){var roster=readRosters_();return readSection_(TABS.TEAMS).map(function(t){var id=clean_(prop_(t,['teamId','Team ID']));var name=clean_(prop_(t,['teamName','Team Name','Team']));return{teamId:id,teamName:name,slug:clean_(prop_(t,['slug','Slug']))||slugify_(name),logoUrl:clean_(prop_(t,['logoUrl','Logo URL','LogoURL'])),bannerUrl:clean_(prop_(t,['bannerUrl','Banner URL'])),description:clean_(prop_(t,['description','Description'])),mobileNumber:clean_(prop_(t,['mobileNumber','Mobile Number'])),status:clean_(prop_(t,['status','Status']))||'Active',registrationStatus:clean_(prop_(t,['registrationStatus','Registration Status']))||'Registered',players:(roster[id]||[]).length,roster:roster[id]||[],createdAt:clean_(prop_(t,['createdAt','Created At'])),lastUpdated:clean_(prop_(t,['updatedAt','Updated At','lastUpdated']))};}).filter(function(t){return t.teamName;});}
+function nextId_(prefix,items,keyNames){var max=0;items.forEach(function(x){var v=clean_(prop_(x,keyNames));var m=v.match(new RegExp('^'+prefix+'-(\\d+)$','i'));if(m)max=Math.max(max,parseInt(m[1],10));});return prefix+'-'+String(max+1).padStart(5,'0');}
+function writeTeams_(items){var old=readTeams_(),byId={},byName={},used={},prepared=[];old.forEach(function(t){byId[t.teamId]=t;byName[t.teamName.toLowerCase()]=t;});(items||[]).forEach(function(raw){var name=clean_(prop_(raw,['teamName','Team Name','Team','team']));if(!name)return;var suppliedId=clean_(prop_(raw,['teamId','Team ID','id'])),prior=byId[suppliedId]||byName[name.toLowerCase()]||{};var slug=clean_(prop_(raw,['slug','Slug']))||slugify_(name),base=slug,n=2;while(used[slug.toLowerCase()])slug=base+'-'+n++;used[slug.toLowerCase()]=true;var teamId=suppliedId||prior.teamId||nextId_('TN',old.concat(prepared),['teamId','Team ID']);var roster=Array.isArray(raw.roster)?raw.roster:(Array.isArray(raw.playersList)?raw.playersList:[]);prepared.push({teamId:teamId,teamName:name,slug:slug,logoUrl:cleanLogo_(prop_(raw,['logoUrl','Logo URL','LogoURL'])),bannerUrl:clean_(prop_(raw,['bannerUrl','Banner URL'])),description:clean_(prop_(raw,['description','Description'])),mobileNumber:clean_(prop_(raw,['mobileNumber','Mobile Number'])),status:clean_(prop_(raw,['status','Status']))||'Active',registrationStatus:clean_(prop_(raw,['registrationStatus','Registration Status']))||'Registered',roster:roster,createdAt:clean_(prop_(raw,['createdAt','Created At']))||prior.createdAt||now_()});});var s=getSheet_(TABS.TEAMS);ensureSheet_(s,HEADERS[TABS.TEAMS]);var rows=prepared.map(function(t){return[t.teamId,t.teamName,t.slug,t.logoUrl,t.bannerUrl,t.description,t.mobileNumber,t.status,t.registrationStatus,t.createdAt,now_()];});clear_(s);if(rows.length)s.getRange(2,1,rows.length,HEADERS[TABS.TEAMS].length).setValues(rows);writeRosters_(prepared);SpreadsheetApp.flush();}
+function cleanLogo_(v){var x=clean_(v);return(!x||x.indexOf('/tnffm-default')>=0)?'':x;}
+function writeRosters_(teams){var s=getSheet_(TABS.ROSTERS);ensureSheet_(s,HEADERS[TABS.ROSTERS]);var rows=[];(teams||[]).forEach(function(t){var roster=Array.isArray(t.roster)?t.roster:[];roster.forEach(function(p,i){if(!p)return;var name=clean_(prop_(p,['name','playerName','Player Name'])),uid=clean_(prop_(p,['uid','UID'])),logo=clean_(prop_(p,['playerLogoUrl','Player Logo URL','PlayerLogoURL','logoUrl']));if(!name&&!uid&&!logo)return;rows.push([clean_(prop_(p,['playerId','Player ID','id']))||t.teamId+'-P-'+String(i+1).padStart(2,'0'),t.teamId,t.teamName,name,uid,clean_(prop_(p,['role','Role'])),cleanLogo_(logo),clean_(prop_(p,['status','Status']))||'Active',clean_(prop_(p,['createdAt','Created At']))||now_(),now_()]);});});clear_(s);if(rows.length)s.getRange(2,1,rows.length,HEADERS[TABS.ROSTERS].length).setValues(rows);}
+function writeRankings_(items){writeGeneric_(TABS.RANKINGS,items||[]);}
+function writeEvents_(items){var old=readSection_(TABS.EVENTS),byId={},byName={};old.forEach(function(e){byId[clean_(prop_(e,['eventId','Event ID']))]=e;byName[clean_(prop_(e,['name','Name','eventName'])).toLowerCase()]=e;});var out=(items||[]).map(function(e){var name=clean_(prop_(e,['name','eventName','Name']));var prior=byId[clean_(prop_(e,['eventId','Event ID','id']))]||byName[name.toLowerCase()]||{};return{eventId:clean_(prop_(e,['eventId','Event ID','id']))||prior.eventId||nextId_('EVENT',old,['eventId','Event ID']),name:name,organizer:clean_(prop_(e,['organizer','Organizer'])),teams:int_(prop_(e,['teams','Team Count'])),prize:clean_(prop_(e,['prize','Prize','Prize Pool'])),status:clean_(prop_(e,['status','Status'])),counted:clean_(prop_(e,['counted','Counted'])),date:clean_(prop_(e,['date','Date','eventDate','Event Date'])),notes:clean_(prop_(e,['notes','Notes'])),matchesPlayed:int_(prop_(e,['matchesPlayed','Matches Played'])),published:bool_(prop_(e,['published','Published'])),results:Array.isArray(e.results)?e.results:safeJson_(e.results,[]),createdAt:clean_(prop_(e,['createdAt','Created At']))||prior.createdAt||now_(),updatedAt:now_()};});writeGeneric_(TABS.EVENTS,out);}
+function writeResults_(items){var old=readSection_(TABS.RESULTS);var out=(items||[]).map(function(r,i){var supplied=clean_(prop_(r,['resultId','Result ID','id']));var id=supplied;if(!id){var ev=clean_(prop_(r,['eventId','Event ID'])),team=clean_(prop_(r,['teamId','Team ID'])),pos=int_(prop_(r,['position','Position']));var prior=old.find(function(x){return clean_(prop_(x,['eventId','Event ID']))===ev&&clean_(prop_(x,['teamId','Team ID']))===team&&int_(prop_(x,['position','Position']))===pos;});id=prior?clean_(prop_(prior,['resultId','Result ID'])):nextId_('RESULT',old,['resultId','Result ID']);}return{resultId:id,eventId:clean_(prop_(r,['eventId','Event ID'])),eventName:clean_(prop_(r,['eventName','Event Name'])),teamId:clean_(prop_(r,['teamId','Team ID'])),teamName:clean_(prop_(r,['teamName','Team Name','Team'])),position:int_(prop_(r,['position','Position','rank'])),kills:int_(prop_(r,['kills','Kills'])),booyahs:int_(prop_(r,['booyahs','Booyahs'])),positionPoints:num_(prop_(r,['positionPoints','Position Points'])),killPoints:num_(prop_(r,['killPoints','Kill Points'])),totalPoints:num_(prop_(r,['totalPoints','Total Points','total','Total'])),proofUrl:clean_(prop_(r,['proofUrl','Proof URL','ProofURL'])),verified:bool_(prop_(r,['verified','Verified'])),updatedAt:now_()};});writeGeneric_(TABS.RESULTS,out);}
+function writeNews_(items){var out=(items||[]).map(function(n,i){return{id:clean_(prop_(n,['id','ID']))||'NEWS-'+String(i+1).padStart(5,'0'),title:clean_(prop_(n,['title','Title'])),description:clean_(prop_(n,['description','Description'])),date:clean_(prop_(n,['date','Date'])),type:clean_(prop_(n,['type','Type'])),status:clean_(prop_(n,['status','Status']))||'Published',imageUrl:clean_(prop_(n,['imageUrl','ImageURL','Image URL'])),link:clean_(prop_(n,['link','Link'])),updatedAt:now_()};});writeGeneric_(TABS.NEWS,out);}
+function keyFor_(section,x){if(section==='teams')return clean_(prop_(x,['teamId','Team ID','id']))||'name:'+clean_(prop_(x,['teamName','Team Name','Team'])).toLowerCase();if(section==='rankings')return clean_(prop_(x,['teamId','Team ID']))||'name:'+clean_(prop_(x,['teamName','Team Name','Team'])).toLowerCase();if(section==='events')return clean_(prop_(x,['eventId','Event ID','id']))||'name:'+clean_(prop_(x,['name','Event Name','Name'])).toLowerCase();if(section==='rankingResults')return clean_(prop_(x,['resultId','Result ID','id']))||[clean_(prop_(x,['eventId','Event ID'])),clean_(prop_(x,['teamId','Team ID'])),int_(prop_(x,['position','Position']))].join('|');if(section==='news')return clean_(prop_(x,['id','ID']))||'title:'+clean_(prop_(x,['title','Title'])).toLowerCase();if(section==='collaborators')return clean_(prop_(x,['collaboratorId','Collaborator ID','id']))||'name:'+clean_(prop_(x,['name','Name'])).toLowerCase();if(section==='accounts')return clean_(prop_(x,['username','Username']))||clean_(prop_(x,['email','Email']));if(section==='submissions')return clean_(prop_(x,['submissionId','SubmissionID']))||[clean_(prop_(x,['username','Username'])),clean_(prop_(x,['tournamentName','TournamentName'])),clean_(prop_(x,['tournamentDate','TournamentDate']))].join('|');if(section==='feedback')return clean_(prop_(x,['feedbackId','FeedbackID']))||[clean_(prop_(x,['username','Username'])),clean_(prop_(x,['createdAt','CreatedAt'])),clean_(prop_(x,['message','Message']))].join('|');return JSON.stringify(x);}
+function verify_(section,expected,actual){if(!Array.isArray(actual))throw new Error(section+' read-back is not an array.');var have={};actual.forEach(function(x){var k=keyFor_(section,x);if(k)have[k]=true;});for(var i=0;i<expected.length;i++){var k=keyFor_(section,expected[i]);if(k&&!have[k])throw new Error(section+' write verification failed. Missing record: '+k);}return{expected:expected.length,actual:actual.length,match:true};}
+function incoming_(p){var o={};if(Array.isArray(p.teams))o.teams=p.teams;if(Array.isArray(p.rankings))o.rankings=p.rankings;if(Array.isArray(p.events))o.events=p.events;if(Array.isArray(p.rankingResults))o.rankingResults=p.rankingResults;else if(Array.isArray(p.results))o.rankingResults=p.results;if(Array.isArray(p.news))o.news=p.news;if(Array.isArray(p.collaborators))o.collaborators=p.collaborators;if(Array.isArray(p.accounts))o.accounts=p.accounts;if(Array.isArray(p.submissions))o.submissions=p.submissions;if(Array.isArray(p.feedback))o.feedback=p.feedback;return o;}
+function writeOne_(section,items){if(section==='teams')return writeTeams_(items);if(section==='rankings')return writeRankings_(items);if(section==='events')return writeEvents_(items);if(section==='rankingResults')return writeResults_(items);if(section==='news')return writeNews_(items);var name={collaborators:TABS.COLLAB,accounts:TABS.ACCOUNTS,submissions:TABS.SUBMISSIONS,feedback:TABS.FEEDBACK}[section];if(!name)throw new Error('Unsupported section: '+section);writeGeneric_(name,items);}
+function doGet(e){try{return ok_(readAll_());}catch(e){console.error(e);return fail_(err_(e),'READ_FAILED');}}
+function doPost(e){var lock=LockService.getScriptLock();try{if(!e||!e.postData||!e.postData.contents)return fail_('Empty request body.','EMPTY_BODY');if(e.postData.contents.length>MAX_BODY_CHARS)return fail_('Request is too large.','BODY_TOO_LARGE');lock.waitLock(30000);var p;try{p=JSON.parse(e.postData.contents);}catch(x){return fail_('Request body is not valid JSON.','INVALID_JSON');}if(!p||typeof p!=='object'||Array.isArray(p))return fail_('Request body must be a JSON object.','INVALID_PAYLOAD');if(p.action==='setup'||p.action==='setupSheets')return setupTNFFM();if(p.action==='health'||p.action==='healthCheck')return healthCheck();if(p.action==='uploadLogo')return ok_({url:uploadLogo_(p.dataUrl,p.fileName)});var inc=incoming_(p),sections=Object.keys(inc);if(!sections.length)return fail_('No supported data section was supplied.','NO_SECTIONS');ensureAll_();sections.forEach(function(s){writeOne_(s,inc[s]);});var fresh=readAll_(),verification={};sections.forEach(function(s){verification[s]=verify_(s,inc[s],fresh[s]);});return ok_({saved:true,verified:true,savedSections:sections,savedAt:now_(),verification:verification,data:fresh});}catch(e){console.error(e);return fail_(err_(e),'WRITE_FAILED');}finally{try{lock.releaseLock();}catch(x){}}}
+function uploadLogo_(dataUrl,fileName){if(typeof dataUrl!=='string'||dataUrl.indexOf('data:image/')!==0)throw new Error('Invalid image data.');if(dataUrl.length>4000000)throw new Error('Image is too large.');var m=dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);if(!m)throw new Error('Invalid image format.');var blob=Utilities.newBlob(Utilities.base64Decode(m[2]),m[1],clean_(fileName||'tnffm-image').replace(/[^a-zA-Z0-9._-]/g,'-'));var folderId=clean_(PropertiesService.getScriptProperties().getProperty('DRIVE_FOLDER_ID'));var folder=folderId?DriveApp.getFolderById(folderId):DriveApp.getRootFolder();var file=folder.createFile(blob);file.setSharing(DriveApp.Access.ANYONE_WITH_LINK,DriveApp.Permission.VIEW);return'https://drive.google.com/uc?export=view&id='+file.getId();}
+function setSpreadsheetId(id){var v=clean_(id);if(!v)throw new Error('Spreadsheet ID required.');SpreadsheetApp.openById(v);PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID',v);return ok_({spreadsheetId:v,message:'TNFFM spreadsheet configured.'});}
+function healthCheck(){var ss=getSpreadsheet_();ensureAll_();var counts={};Object.keys(TABS).forEach(function(k){var s=ss.getSheetByName(TABS[k]);counts[TABS[k]]=s&&s.getLastRow()>1?s.getLastRow()-1:0;});return ok_({message:'TNFFM Apps Script backend is healthy.',spreadsheetId:ss.getId(),spreadsheetName:ss.getName(),counts:counts,checkedAt:now_()});}
