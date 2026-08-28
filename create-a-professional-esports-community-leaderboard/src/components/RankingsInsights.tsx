@@ -32,12 +32,15 @@ export function RankingsInsights({ teams, news }: { teams: RankedTeam[]; news: T
                 >
                   <div className="flex items-start gap-3">
                     {item.imageUrl ? (
-                      <img
-                        src={item.imageUrl}
-                        alt=""
-                        className="h-14 w-14 shrink-0 rounded-lg border border-white/10 object-cover"
-                        onError={(event) => { event.currentTarget.style.display = "none"; }}
-                      />
+                      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black/40">
+                        <img
+                          src={item.imageUrl}
+                          alt=""
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
                     ) : (
                       <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-gold/20 bg-gold/5">
                         <Clock className="h-5 w-5 text-gold" />
@@ -93,7 +96,7 @@ export function RankingsInsights({ teams, news }: { teams: RankedTeam[]; news: T
               "2nd Runner-Up x 50",
               "Top 5 finish x 25",
               "Finalist x 15",
-              "Free Fire MAX official finalist x 100"
+              "Free Fire MAX official finalist x 100",
             ].map((rule) => (
               <div key={rule} className="flex items-center justify-between rounded-lg bg-black/35 px-4 py-3">
                 <span>{rule}</span>
