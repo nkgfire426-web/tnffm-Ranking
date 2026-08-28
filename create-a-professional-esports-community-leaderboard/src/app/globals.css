@@ -34,6 +34,33 @@ button,[role="button"],a { touch-action: manipulation; }
 .table-scrollbar::-webkit-scrollbar { height:8px; }
 .table-scrollbar::-webkit-scrollbar-thumb { background:rgba(255,210,31,.38); border-radius:999px; }
 
+/* Public site: use the same disciplined information hierarchy as the dashboards,
+   while keeping the public experience more visual and discovery-focused. */
+.dashboard-inspired-site {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(255,210,31,.08), transparent 34rem),
+    linear-gradient(180deg, rgba(9,9,11,.18), rgba(5,5,7,0));
+}
+.dashboard-inspired-site > section {
+  position: relative;
+}
+.dashboard-inspired-site > section:not(:first-of-type)::before {
+  content: "";
+  display: block;
+  width: min(100% - 2rem, 1180px);
+  height: 1px;
+  margin: 0 auto;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent);
+}
+.dashboard-inspired-site .glass {
+  border-color: rgba(255,255,255,.09);
+  box-shadow: 0 18px 50px rgba(0,0,0,.18);
+}
+.dashboard-inspired-site section > div {
+  min-width: 0;
+}
+
 /* Responsive media helpers */
 .responsive-media { display:block; width:100%; height:auto; object-fit:cover; }
 .safe-bottom { padding-bottom:max(1rem, env(safe-area-inset-bottom)); }
@@ -45,22 +72,18 @@ button,[role="button"],a { touch-action: manipulation; }
   main section, main article { min-width:0; max-width:100%; }
   h1,h2,h3,h4,p,a,span,td,th,label { overflow-wrap:anywhere; }
 
-  /* Never allow a component to create page-level horizontal scrolling. */
   [class*="w-screen"], [class*="min-w-screen"] { max-width:100vw; }
   [class*="max-w-"] { max-width:100%; }
 
-  /* Touch-first controls. */
   button, [role="button"] { min-height:var(--tap-size); max-width:100%; }
   a:not(.inline-link) { min-height:44px; }
   input, select, textarea { font-size:16px !important; }
   input, select { min-height:48px; }
   textarea { min-height:96px; }
 
-  /* Prevent flex/grid children from forcing their parent wider. */
   .flex > *, .grid > * { min-width:0; }
   [class*="overflow-hidden"] { min-width:0; }
 
-  /* Navigation: compact, touch friendly, safe-area aware. */
   header nav {
     min-height:56px;
     padding-top:max(.55rem, env(safe-area-inset-top));
@@ -74,7 +97,6 @@ button,[role="button"],a { touch-action: manipulation; }
   header nav a>span:last-child>span:last-child { display:none; }
   header nav .group>button { min-width:48px; padding-left:.7rem; padding-right:.7rem; }
 
-  /* Main content gets consistent thumb-friendly gutters. */
   main section { padding-left:var(--mobile-gutter)!important; padding-right:var(--mobile-gutter)!important; }
   main section:first-child { scroll-margin-top:72px; }
 
@@ -82,7 +104,6 @@ button,[role="button"],a { touch-action: manipulation; }
   h2 { font-size:clamp(1.35rem,6.5vw,1.9rem); line-height:1.12; }
   h3 { font-size:clamp(1.05rem,5vw,1.35rem); }
 
-  /* Only collapse explicit multi-column utility grids; preserve intentional table layouts. */
   [class~="grid-cols-2"], [class~="grid-cols-3"], [class~="grid-cols-4"], [class~="grid-cols-5"] {
     grid-template-columns:minmax(0,1fr)!important;
   }
@@ -90,16 +111,13 @@ button,[role="button"],a { touch-action: manipulation; }
   .glass { border-radius:.9rem; }
   [class*="flex-wrap"] { row-gap:.55rem; }
 
-  /* Tables scroll inside their own area instead of pushing the whole page. */
   .table-scrollbar table { width:max-content; min-width:100%; }
   table { max-width:none; }
   th, td { white-space:nowrap; }
 
-  /* Form/action groups stack naturally on phones. */
   form .flex, form .grid, [role="dialog"] .flex { min-width:0; }
   form button, form [type="submit"] { width:100%; }
 
-  /* Dialogs/modals fit between phone edges and browser safe areas. */
   [role="dialog"] {
     width:min(100% - 1.5rem, 640px);
     max-height:calc(100dvh - 1.5rem);
@@ -107,9 +125,13 @@ button,[role="button"],a { touch-action: manipulation; }
     overscroll-behavior:contain;
   }
 
-  /* Long URLs, usernames and team names never break the layout. */
   a, code, pre { overflow-wrap:anywhere; word-break:break-word; }
   pre { max-width:100%; overflow:auto; -webkit-overflow-scrolling:touch; }
+
+  .dashboard-inspired-site > section:not(:first-of-type)::before {
+    width:100%;
+    margin-bottom:.25rem;
+  }
 }
 
 @media (max-width: 480px) {
@@ -130,22 +152,18 @@ button,[role="button"],a { touch-action: manipulation; }
   .glass { padding:.65rem!important; }
 }
 
-/* Landscape phones: keep controls compact without creating horizontal overflow. */
 @media (max-height: 500px) and (orientation: landscape) and (max-width: 900px) {
   header nav { min-height:50px; }
   main section { padding-top:.75rem!important; padding-bottom:.75rem!important; }
 }
 
-/* Keyboard users still get a clear focus state. */
 :focus-visible { outline:2px solid #ffd21f; outline-offset:2px; }
 
-/* Reduced-motion preference. */
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior:auto; }
   *, *::before, *::after { animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; }
 }
 
-/* Admin/form controls stay usable on narrow phones. */
 @media (max-width:768px) {
   input,select,textarea { width:100%; }
   .overflow-x-auto { -webkit-overflow-scrolling:touch; overscroll-behavior-x:contain; }
