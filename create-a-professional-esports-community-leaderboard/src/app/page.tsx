@@ -13,6 +13,7 @@ import { getUnifiedTeamData } from "@/lib/site-data";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+// Production safety marker: this page must render only from the current main branch build.
 export default async function Home() {
   const [teams, news, events] = await Promise.all([
     getUnifiedTeamData(),
