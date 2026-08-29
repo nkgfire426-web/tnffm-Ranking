@@ -55,7 +55,13 @@ async function callSheets(url: string, method: "GET" | "POST", body?: unknown) {
 }
 
 function keyOf(value: unknown) { return text(value); }
-function teamKey(t: any) { return `${keyOf(t?.teamId ?? t?.["Team ID"])}|${keyOf(t?.teamName ?? t?.["Team Name"] ?? t?.Team).toLowerCase()}`; }
+function teamIdOf(t: any) { return keyOf(t?.teamId ?? t?.["Team ID"]); }
+function teamNameOf(t: any) { return keyOf(t?.teamName ?? t?.["Team Name"] ?? t?.Team); }
+function teamKey(t: any) {
+  const id = teamIdOf(t);
+  const name = teamNameOf(t).toLowerCase();
+  return id ? `id:${id.toLowerCase()}` : `name:${name}`;
+}
 function rankingKey(r: any) { return keyOf(r?.teamId ?? r?.["Team ID"]) || `name:${keyOf(r?.teamName ?? r?.["Team Name"] ?? r?.Team).toLowerCase()}`; }
 function collaboratorKey(c: any) { return keyOf(c?.collaboratorId ?? c?.id ?? c?.["Collaborator ID"]) || `name:${keyOf(c?.name ?? c?.Name).toLowerCase()}`; }
 function resultKey(r: any) { return keyOf(r?.resultId ?? r?.id ?? r?.["Result ID"]); }
@@ -68,6 +74,23 @@ function verifyKeys(expected: any[], actual: any[], name: string, key: (v: any) 
   const actualKeys = new Set(actual.map(key).filter(Boolean));
   const missing = expectedKeys.filter((k) => !actualKeys.has(k));
   if (missing.length) throw new Error(`${name} was written but read-back does not match. Missing record: ${missing[0]}`);
+}
+
+// A newly added team may not have a Team ID in the browser payload. Apps Script
+// is allowed to assign one during the write, so verification must fall back to
+// the normalized team name for ID-less payload records instead of comparing an
+// artificial empty-ID key against the generated Sheet ID.
+function verifyTeams(expected: any[], actual: any[]) {
+  if (!Array.isArray(actual)) throw new Error("Teams: Google Sheets did not return a valid array.");
+  const actualById = new Set(actual.map(teamIdOf).filter(Boolean).map((v) => v.toLowerCase()));
+  const actualByName = new Set(actual.map(teamNameOf).filter(Boolean).map((v) => v.toLowerCase()));
+  for (const team of expected) {
+    const expectedId = teamIdOf(team).toLowerCase();
+    const expectedName = teamNameOf(team).toLowerCase();
+    if (!expectedId && !expectedName) continue;
+    if (expectedId ? actualById.has(expectedId) || actualByName.has(expectedName) : actualByName.has(expectedName)) continue;
+    throw new Error(`Teams was written but read-back does not match. Missing record: ${expectedId}|${expectedName}`);
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -94,7 +117,7 @@ export async function POST(request: NextRequest) {
 
     // Never tell the admin that a save succeeded until a fresh GET sees the records.
     const fresh = await callSheets(url, "GET");
-    if (Array.isArray(data.teams)) verifyKeys(data.teams, fresh.teams, "Teams", teamKey);
+    if (Array.isArray(data.teams)) verifyTeams(data.teams, fresh.teams);
     if (Array.isArray(data.rankings)) verifyKeys(data.rankings, fresh.rankings, "Rankings", rankingKey);
     if (Array.isArray(data.collaborators)) verifyKeys(data.collaborators, fresh.collaborators, "Collaborators", collaboratorKey);
     if (Array.isArray(data.news)) verifyKeys(data.news, fresh.news, "News", (x) => simpleKey(x, ["ID", "id"]));
