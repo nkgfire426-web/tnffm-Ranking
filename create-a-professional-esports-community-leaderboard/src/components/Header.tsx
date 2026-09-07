@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type React from "react";
 import { useEffect, useState } from "react";
-import { CalendarDays, Crown, ListChecks, LogIn, MoreVertical, ScrollText, Trophy, Users } from "lucide-react";
+import { CalendarDays, Crown, ListChecks, LogIn, MoreVertical, Newspaper, ScrollText, Trophy, Users } from "lucide-react";
 import { TeamLogo } from "@/components/TeamLogo";
 
 type TeamSession = { teamName?: string; logoUrl?: string } | null;
@@ -56,6 +56,7 @@ export function Header() {
               <MenuLink href="/ranking" icon={<Trophy className="h-4 w-4" />} label="Official Ranking" />
               <MenuLink href="/teams" icon={<Users className="h-4 w-4" />} label="Tamil Community Teams" />
               <MenuLink href="/tracked-events" icon={<CalendarDays className="h-4 w-4" />} label="Official Events" />
+              <MenuLink href="/news" icon={<Newspaper className="h-4 w-4" />} label="News & Updates" />
               <MenuLink href="/collaborators" icon={<Users className="h-4 w-4" />} label="Collaborators" />
               <MenuLink href="/team-details" icon={<Crown className="h-4 w-4" />} label="Team Details" />
               <MenuLink href="/rank-system" icon={<ListChecks className="h-4 w-4" />} label="Rank System" />
