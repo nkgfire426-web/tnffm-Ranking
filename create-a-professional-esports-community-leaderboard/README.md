@@ -4,97 +4,72 @@ Professional Free Fire MAX community leaderboard for **Tamilnadu Free Fire Max E
 
 ## Features
 
-- Premium red, black, and yellow esports UI
-- Live hero stats, top-three podium, sticky leaderboard table, search, filters, sorting, pagination
-- Automatic Community Points calculation and ranking tie-breakers
-- Team profile pages with tournament, championship, and match statistics
-- Rank movement indicators, champion crown, team badges, recent updates feed
-- Export leaderboard as PNG and share team profiles
-- Password-gated admin dashboard preview
-- Optional Google Apps Script webhook for dashboard write-back
-- Google Sheets API or published CSV integration with 5-minute refresh
-- SEO metadata, sitemap, robots rules, and responsive mobile layout
+- Premium esports UI with responsive mobile layout
+- Live leaderboard, podium, search, filters, sorting, and pagination
+- Automatic Community Score calculation and ranking tie-breakers
+- Team profile pages with tournament and match statistics
+- Rank movement indicators, badges, recent updates, and sharing/export tools
+- Password-protected admin dashboard
+- Google Apps Script-backed production read/write flow
+- News & Updates management and public news pages
+- Team registration/login and team dashboard workflows
+- SEO metadata, sitemap, and robots rules
 
 ## Project Structure
 
 ```txt
 src/app
-  page.tsx                 Homepage
-  admin/page.tsx           Password-protected admin dashboard
-  teams/[slug]/page.tsx    Team profile pages
-  api/teams/route.ts       Public leaderboard JSON endpoint
-  api/admin/login/route.ts Server-side password verification
-  api/admin/sync/route.ts  Optional Google Sheets webhook sync
-src/components             Hero, podium, table, profiles, admin UI
-src/lib                    Ranking formula, Sheets reader, sample data, types
-outputs/sample-teams.csv   Ready-to-import 20-team sample sheet
+  page.tsx                         Homepage
+  admin/page.tsx                   Admin dashboard
+  teams/[slug]/page.tsx            Team profile pages
+  news/page.tsx                    Public news page
+  api/admin/login/route.ts         Admin authentication
+  api/admin/save/route.ts          Unified admin write/verify flow
+  api/admin/sheet/route.ts         Protected admin data read
+  api/tracked-events/route.ts      Public tracked-events endpoint
+
+src/components                     UI components and dashboard components
+src/lib                            Ranking, Google Sheets, events, cache, types
+.github/workflows/tnffm-ci.yml     TypeScript/build validation
 ```
 
-## TNFFM Community Score Formula
+## Community Score
+
+The production ranking logic is defined by the application ranking module and should be treated as the source of truth. Do not manually maintain a second ranking formula in documentation or backend code.
+
+## Production Data Architecture
+
+Google Sheets is the canonical data source for production. The admin dashboard uses the protected Google Apps Script-backed save/read flow and verifies writes with a fresh read before reporting success.
+
+The production flow is:
 
 ```txt
-Community Score =
-(Championships x 100)
-+ (Runner-Up x 70)
-+ (2nd Runner-Up x 50)
-+ (Top 5 Finishes x 25)
-+ (Finalist Finishes x 15)
-+ (Free Fire MAX Official Match Finalist x 100)
+Admin login
+   -> protected admin API
+   -> Google Apps Script
+   -> Google Sheets
+   -> fresh read-back verification
+   -> cache invalidation/revalidation
+   -> updated public website
 ```
-
-Tie-breakers are applied in this order:
-
-1. Higher Community Points
-2. More Championships
-3. More Runner-Up finishes
-4. More 2nd Runner-Up finishes
-5. More Top 5 finishes
-6. Fewer events played
-
-## Google Sheet Columns
-
-Use this header row:
-
-```csv
-Team Name,Logo URL,Kills,Booyahs,Championships,RunnerUp,SecondRunnerUp,Top5Finishes,FinalistFinishes,OfficialMatchFinalists,EventsPlayed,WinRate,KillRatio,Players,Status,Description
-```
-
-`Kills` and `Booyahs` remain visible stats, but TNFFM Community Score now uses the official placement-based ranking system.
 
 ## Environment Variables
 
-Copy `.env.example` to `.env.local`.
+Copy `.env.example` to `.env.local` and configure the production secrets there or in Vercel environment settings.
 
 ```bash
-ADMIN_PASSWORD=change-this-password
-NEXT_PUBLIC_SITE_URL=https://your-vercel-domain.vercel.app
-```
-
-Use one of these Google Sheets options.
-
-### Option A: Google Sheets API
-
-```bash
-GOOGLE_SHEETS_ID=your_sheet_id
-GOOGLE_SHEETS_RANGE=Teams!A2:P
-GOOGLE_SHEETS_API_KEY=your_api_key
-```
-
-### Option B: Published CSV
-
-Publish your sheet to the web as CSV and set:
-
-```bash
-GOOGLE_SHEETS_CSV_URL=https://docs.google.com/spreadsheets/d/e/.../pub?gid=0&single=true&output=csv
-```
-
-### Optional Admin Write-Back
-
-If you want `/admin` to push edits back into Google Sheets, deploy a Google Apps Script Web App that accepts JSON `{ teams: [...] }` and rewrites your sheet rows. Then set:
-
-```bash
+ADMIN_PASSWORD=your-secure-admin-password
+NEXT_PUBLIC_SITE_URL=https://your-live-domain.vercel.app
 GOOGLE_SHEETS_WEBHOOK_URL=https://script.google.com/macros/s/.../exec
 ```
+
+Never commit real passwords, API keys, service-account credentials, or private webhook secrets to GitHub.
+
+## Admin Workflow
+
+The `/admin` dashboard is password protected. Production administration should use the configured `ADMIN_PASSWORD` and the unified `/api/admin/save` flow. The backend must fail closed when the admin password is not configured; there is **no default or fallback admin password**.
+
+Admin changes should be verified against Google Sheets before being reported as successfully saved.
 
 ## Local Development
 
@@ -105,26 +80,26 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-## Admin Workflow
+## Validation
 
-The public database is Google Sheets. For production, update team stats directly in the connected Google Sheet or configure `GOOGLE_SHEETS_WEBHOOK_URL` so the password-protected `/admin` panel can forward add, edit, delete, logo upload/remove, kills, championships, Booyahs, and qualification changes to your sheet. The website refreshes automatically every 5 minutes.
+The repository CI validates the application with:
 
-Default local password, if `ADMIN_PASSWORD` is not set:
-
-```txt
-admin123
+```bash
+npm ci
+npx tsc --noEmit
+npm run build
 ```
+
+Run these checks before deploying backend changes.
 
 ## Deploy to Vercel
 
-1. Push this project to GitHub.
-2. Import the repository in Vercel.
-3. Add the environment variables from `.env.example`.
-4. Deploy.
-5. Update `NEXT_PUBLIC_SITE_URL` to the live Vercel URL.
+1. Import the repository into Vercel.
+2. Set the project's Root Directory to `create-a-professional-esports-community-leaderboard`.
+3. Configure the required environment variables.
+4. Deploy the `main` branch.
+5. Verify the public homepage, rankings, teams, news, team login, and admin workflows after deployment.
 
-Vercel will serve the app with incremental refresh every 5 minutes for the Google Sheets-backed leaderboard.
+## Important Architecture Note
 
-## Sample Data
-
-The app includes 20 sample teams in `src/lib/sample-data.ts`. If Google Sheets is not configured or temporarily fails, the leaderboard automatically falls back to the sample dataset so the website remains presentable.
+Use `create-a-professional-esports-community-leaderboard` as the production application directory. Do not introduce another duplicate application directory or maintain a second backend implementation. Legacy/local JSON admin routes should not be used as the production data path.
