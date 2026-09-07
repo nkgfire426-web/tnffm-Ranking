@@ -28,17 +28,27 @@ function normalizeCollaborators(items: unknown) {
   }));
 }
 
+function arrayValue(value: unknown) {
+  return Array.isArray(value) ? value : [];
+}
+
 export async function GET(request: NextRequest) {
   try {
     const expected = process.env.ADMIN_PASSWORD;
     const supplied = request.headers.get("x-admin-password") || "";
-    if (!expected || supplied !== expected) return NextResponse.json({ ok: false, message: "Invalid admin password." }, { status: 401 });
+    if (!expected || supplied !== expected) {
+      return NextResponse.json({ ok: false, message: "Invalid admin password." }, { status: 401 });
+    }
 
     const webhookUrl = process.env.GOOGLE_SHEETS_WEBHOOK_URL?.trim();
-    if (!webhookUrl) return NextResponse.json({ ok: false, message: "Google Sheets is not configured. Add GOOGLE_SHEETS_WEBHOOK_URL in Vercel." }, { status: 503 });
+    if (!webhookUrl) {
+      return NextResponse.json({ ok: false, message: "Google Sheets is not configured. Add GOOGLE_SHEETS_WEBHOOK_URL in Vercel." }, { status: 503 });
+    }
 
     let url: URL;
-    try { url = new URL(webhookUrl); } catch { return NextResponse.json({ ok: false, message: "GOOGLE_SHEETS_WEBHOOK_URL is not a valid URL." }, { status: 503 }); }
+    try { url = new URL(webhookUrl); } catch {
+      return NextResponse.json({ ok: false, message: "GOOGLE_SHEETS_WEBHOOK_URL is not a valid URL." }, { status: 503 });
+    }
     if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec\/?$/i.test(url.origin + url.pathname)) {
       return NextResponse.json({ ok: false, message: "GOOGLE_SHEETS_WEBHOOK_URL must be the current deployed Google Apps Script Web App /exec URL." }, { status: 503 });
     }
@@ -50,8 +60,14 @@ export async function GET(request: NextRequest) {
 
     try {
       const response = await fetch(url.toString(), {
-        method: "GET", cache: "no-store",
-        headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0", Pragma: "no-cache", "X-TNFFM-Request-ID": requestId },
+        method: "GET",
+        cache: "no-store",
+        headers: {
+          Accept: "application/json",
+          "Cache-Control": "no-cache, no-store, max-age=0",
+          Pragma: "no-cache",
+          "X-TNFFM-Request-ID": requestId,
+        },
         signal: controller.signal,
       });
       const raw = await response.text();
@@ -64,23 +80,46 @@ export async function GET(request: NextRequest) {
           : `Google Apps Script returned HTTP ${response.status}.`;
         return NextResponse.json({ ok: false, message: detail }, { status: 502 });
       }
-      if (!result || typeof result !== "object") return NextResponse.json({ ok: false, message: "Google Apps Script returned HTTP 200 but not valid JSON. Check the Web App deployment and doGet()." }, { status: 502 });
-      if (result.ok === false) return NextResponse.json({ ok: false, message: `Google Apps Script error: ${String(result.message || result.error || "Unknown Apps Script error").slice(0, 500)}` }, { status: 502 });
+      if (!result || typeof result !== "object") {
+        return NextResponse.json({ ok: false, message: "Google Apps Script returned HTTP 200 but not valid JSON. Check the Web App deployment and doGet()." }, { status: 502 });
+      }
+      if (result.ok === false) {
+        return NextResponse.json({ ok: false, message: `Google Apps Script error: ${String(result.message || result.error || "Unknown Apps Script error").slice(0, 500)}` }, { status: 502 });
+      }
+
+      // Keep the complete sheet payload intact. The dashboard needs both the
+      // detailed team rows and the Community Rankings rows; older versions of
+      // this route dropped rankings before returning the response.
+      const teams = arrayValue(result.teams);
+      const rankings = arrayValue(result.rankings);
+      const events = arrayValue(result.events);
+      const rankingResults = arrayValue(result.rankingResults).length
+        ? arrayValue(result.rankingResults)
+        : arrayValue(result.results);
 
       return NextResponse.json({
         ok: true,
-        teams: Array.isArray(result.teams) ? result.teams : [],
-        rankings: Array.isArray(result.rankings) ? result.rankings : [],
-        events: Array.isArray(result.events) ? result.events : [],
-        rankingResults: Array.isArray(result.rankingResults) ? result.rankingResults : Array.isArray(result.results) ? result.results : [],
-        results: Array.isArray(result.results) ? result.results : Array.isArray(result.rankingResults) ? result.rankingResults : [],
+        teams,
+        rankings,
+        events,
+        rankingResults,
+        results: rankingResults,
         collaborators: normalizeCollaborators(result.collaborators),
-        news: Array.isArray(result.news) ? result.news : [],
+        news: arrayValue(result.news),
         serverTime: typeof result.serverTime === "string" ? result.serverTime : new Date().toISOString(),
-      }, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0", Pragma: "no-cache" } });
-    } finally { clearTimeout(timeout); }
+      }, {
+        headers: {
+          "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+          Pragma: "no-cache",
+        },
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
   } catch (error) {
-    const message = error instanceof Error && error.name === "AbortError" ? "Google Sheets read timed out after 20 seconds. Check the Apps Script deployment, Spreadsheet ID, and Apps Script execution logs." : error instanceof Error ? error.message : "Unable to read Google Sheets.";
+    const message = error instanceof Error && error.name === "AbortError"
+      ? "Google Sheets read timed out after 20 seconds. Check the Apps Script deployment, Spreadsheet ID, and Apps Script execution logs."
+      : error instanceof Error ? error.message : "Unable to read Google Sheets.";
     console.error("Admin Google Sheets read error:", error);
     return NextResponse.json({ ok: false, message }, { status: 502 });
   }
