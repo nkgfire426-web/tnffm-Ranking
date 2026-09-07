@@ -1,16 +1,32 @@
 import { NextResponse } from "next/server";
 import { getTeamSession } from "@/lib/team-auth";
+import { getRegisteredTeams } from "@/lib/google-sheets";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getTeamSession();
-  if (!session) return NextResponse.json({ ok: false, message: "Not logged in." }, { status: 401 });
-  const webhook = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
-  if (!webhook) return NextResponse.json({ ok: false, message: "Google Sheets is not configured." }, { status: 503 });
-  const response = await fetch(webhook, { cache: "no-store" });
-  const data = await response.json().catch(() => ({}));
-  const team = Array.isArray(data.teams) ? data.teams.find((item: { slug?: string }) => item.slug === session.teamSlug) : null;
-  if (!team) return NextResponse.json({ ok: false, message: "Team profile not found." }, { status: 404 });
-  return NextResponse.json({ ok: true, username: session.username, team });
+  try {
+    const session = await getTeamSession();
+    if (!session) {
+      return NextResponse.json({ ok: false, message: "Not logged in." }, { status: 401, headers: { "Cache-Control": "no-store" } });
+    }
+
+    const teams = await getRegisteredTeams();
+    const team = teams.find((item) => String((item as any).slug || "").trim() === session.teamSlug);
+
+    if (!team) {
+      return NextResponse.json({ ok: false, message: "Team profile not found." }, { status: 404, headers: { "Cache-Control": "no-store" } });
+    }
+
+    return NextResponse.json(
+      { ok: true, username: session.username, team },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  } catch (error) {
+    console.error("Team session lookup error:", error);
+    return NextResponse.json(
+      { ok: false, message: "Unable to load your team profile right now." },
+      { status: 502, headers: { "Cache-Control": "no-store" } }
+    );
+  }
 }
