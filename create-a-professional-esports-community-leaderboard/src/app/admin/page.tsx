@@ -1,5 +1,5 @@
 import { Header } from "@/components/Header";
-import { AdminDashboardStable } from "@/components/AdminDashboardStable";
+import { AdminDashboardPro } from "@/components/AdminDashboardPro";
 import Link from "next/link";
 
 export const metadata = {
@@ -10,11 +10,6 @@ export const metadata = {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-/**
- * Security boundary: do not load Google Sheets data in the server component.
- * The password is checked by /api/admin/login first, then the client
- * dashboard fetches the protected /api/admin/sheet endpoint.
- */
 export default function AdminPage() {
   return (
     <main className="min-h-screen overflow-x-hidden bg-black">
@@ -25,7 +20,7 @@ export default function AdminPage() {
           <div className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.025] p-3 shadow-2xl shadow-black/30 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:p-4">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.24em] text-gold">TNFFM Administration</p>
-              <p className="mt-1 text-sm text-slate-400">Protected control center. Data is loaded only after successful admin authentication.</p>
+              <p className="mt-1 text-sm text-slate-400">Protected control center. Sign in to synchronize and manage the connected Google Sheet data.</p>
             </div>
             <Link href="/admin/news" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-gold/30 bg-gold/[0.06] px-4 py-3 text-center text-xs font-black uppercase tracking-wide text-gold transition hover:border-gold hover:bg-gold hover:text-black sm:text-sm">
               Tournament News &amp; Updates
@@ -33,7 +28,7 @@ export default function AdminPage() {
           </div>
         </div>
         <div className="w-full min-w-0 overflow-x-hidden">
-          <AdminDashboardStable initialTeams={[]} initialEvents={[]} initialCollaborators={[]} />
+          <AdminDashboardPro initialTeams={[]} initialEvents={[]} initialCollaborators={[]} />
         </div>
       </div>
     </main>
