@@ -227,12 +227,12 @@ export async function getRankedTeams(): Promise<RankedTeam[]> {
     const byId = new Map<string, any>(
       teamsRaw
         .map((team: any): [string, any] => [String(team.teamId ?? team.id ?? "").trim(), team])
-        .filter(([id]) => Boolean(id))
+        .filter(([id]: [string, any]) => Boolean(id))
     );
     const byName = new Map<string, any>(
       teamsRaw
         .map((team: any): [string, any] => [String(team.teamName ?? team.team ?? team["Team Name"] ?? "").trim().toLowerCase(), team])
-        .filter(([name]) => Boolean(name))
+        .filter(([name]: [string, any]) => Boolean(name))
     );
 
     // Published Community Rankings in Google Sheets are the public source of truth.
