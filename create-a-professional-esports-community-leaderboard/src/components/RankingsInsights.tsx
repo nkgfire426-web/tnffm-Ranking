@@ -3,6 +3,7 @@
 import { Clock, ExternalLink, Sigma, TrendingUp } from "lucide-react";
 import type { RankedTeam } from "@/lib/types";
 import type { TournamentNews } from "@/lib/google-sheets";
+import { normalizeImageUrl } from "./TeamLogo";
 
 export function RankingsInsights({ teams, news }: { teams: RankedTeam[]; news: TournamentNews[] }) {
   const titleGap = teams[1] ? teams[0].communityPoints - teams[1].communityPoints : 0;
@@ -25,50 +26,53 @@ export function RankingsInsights({ teams, news }: { teams: RankedTeam[]; news: T
 
           {visibleNews.length > 0 ? (
             <div className="space-y-3">
-              {visibleNews.map((item, index) => (
-                <article
-                  key={item.id || `${item.title}-${item.date}-${index}`}
-                  className="rounded-lg border border-white/10 bg-black/35 p-4 transition-colors hover:border-gold/25"
-                >
-                  <div className="flex items-start gap-3">
-                    {item.imageUrl ? (
-                      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black/40">
-                        <img
-                          src={item.imageUrl}
-                          alt=""
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                          referrerPolicy="no-referrer"
-                        />
-                      </div>
-                    ) : (
-                      <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-gold/20 bg-gold/5">
-                        <Clock className="h-5 w-5 text-gold" />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em]">
-                        <span className="rounded-full border border-gold/25 px-2 py-1 text-gold">{item.type || "Update"}</span>
-                        <span className="text-slate-500">{item.date || "Recent"}</span>
-                      </div>
-                      <h3 className="mt-2 font-semibold text-white">{item.title}</h3>
-                      {item.description && (
-                        <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-400">{item.description}</p>
+              {visibleNews.map((item, index) => {
+                const imageSrc = item.imageUrl ? normalizeImageUrl(item.imageUrl) : "";
+                return (
+                  <article
+                    key={item.id || `${item.title}-${item.date}-${index}`}
+                    className="rounded-lg border border-white/10 bg-black/35 p-4 transition-colors hover:border-gold/25"
+                  >
+                    <div className="flex items-start gap-3">
+                      {imageSrc && imageSrc !== "/tnffm-default-logo.svg" ? (
+                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black/40">
+                          <img
+                            src={imageSrc}
+                            alt=""
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                      ) : (
+                        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-gold/20 bg-gold/5">
+                          <Clock className="h-5 w-5 text-gold" />
+                        </div>
                       )}
-                      {item.link && (
-                        <a
-                          href={item.link}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-gold hover:text-white"
-                        >
-                          Read more <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em]">
+                          <span className="rounded-full border border-gold/25 px-2 py-1 text-gold">{item.type || "Update"}</span>
+                          <span className="text-slate-500">{item.date || "Recent"}</span>
+                        </div>
+                        <h3 className="mt-2 font-semibold text-white">{item.title}</h3>
+                        {item.description && (
+                          <p className="mt-1 line-clamp-2 text-sm leading-5 text-slate-400">{item.description}</p>
+                        )}
+                        {item.link && /^https?:\/\//i.test(item.link) && (
+                          <a
+                            href={item.link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-gold hover:text-white"
+                          >
+                            Read more <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           ) : (
             <div className="grid min-h-[300px] place-items-center rounded-lg border border-dashed border-white/10 bg-black/20 px-6 text-center">
