@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import { cookies } from "next/headers";
 
 const COOKIE_NAME = "tnffm_team_session";
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+const SESSION_MAX_AGE_MS = SESSION_MAX_AGE_SECONDS * 1000;
 
 // TEAM_AUTH_SECRET is preferred. ADMIN_PASSWORD remains a compatibility fallback
 // so existing production deployments do not require an immediate environment
@@ -17,7 +19,8 @@ export function hashPassword(password: string) {
 export function createSession(username: string, teamSlug: string) {
   const signingSecret = secret();
   if (!signingSecret) throw new Error("Team session signing secret is not configured.");
-  const payload = `${username}|${teamSlug}`;
+  const issuedAt = Date.now();
+  const payload = `${username}|${teamSlug}|${issuedAt}`;
   const signature = crypto.createHmac("sha256", signingSecret).update(payload).digest("hex");
   return Buffer.from(`${payload}|${signature}`).toString("base64url");
 }
@@ -28,9 +31,19 @@ export function verifySession(value: string | undefined) {
   try {
     const decoded = Buffer.from(value, "base64url").toString("utf8");
     const parts = decoded.split("|");
-    if (parts.length !== 3) return null;
-    const [username, teamSlug, signature] = parts;
-    const expected = crypto.createHmac("sha256", signingSecret).update(`${username}|${teamSlug}`).digest("hex");
+    if (parts.length !== 4) return null;
+
+    const [username, teamSlug, issuedAtRaw, signature] = parts;
+    const issuedAt = Number(issuedAtRaw);
+    if (!username || !teamSlug || !Number.isSafeInteger(issuedAt)) return null;
+
+    // Browser cookie maxAge is not a sufficient security boundary. Enforce
+    // expiry on the server too, so copied old cookies cannot live indefinitely.
+    const age = Date.now() - issuedAt;
+    if (age < 0 || age > SESSION_MAX_AGE_MS) return null;
+
+    const payload = `${username}|${teamSlug}|${issuedAtRaw}`;
+    const expected = crypto.createHmac("sha256", signingSecret).update(payload).digest("hex");
     if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
     return { username, teamSlug };
   } catch {
@@ -51,7 +64,7 @@ export function teamCookieOptions() {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
     path: "/",
-    maxAge: 60 * 60 * 24 * 30
+    maxAge: SESSION_MAX_AGE_SECONDS
   };
 }
 
