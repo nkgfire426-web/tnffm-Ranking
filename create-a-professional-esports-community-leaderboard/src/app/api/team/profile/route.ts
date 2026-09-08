@@ -5,7 +5,14 @@ export const dynamic = "force-dynamic";
 
 function cleanRoster(value: unknown) {
   if (!Array.isArray(value)) return [];
-  return value.map((player: any) => ({ name: String(player?.name ?? "").trim(), uid: String(player?.uid ?? "").trim(), playerLogoUrl: String(player?.playerLogoUrl ?? player?.PlayerLogoURL ?? player?.playerLogo ?? "").trim() })).filter((player) => player.name || player.uid || player.playerLogoUrl);
+  return value
+    .map((player: any) => ({
+      name: String(player?.name ?? "").trim(),
+      uid: String(player?.uid ?? "").trim(),
+      role: String(player?.role ?? player?.Role ?? "").trim(),
+      playerLogoUrl: String(player?.playerLogoUrl ?? player?.PlayerLogoURL ?? player?.playerLogo ?? "").trim(),
+    }))
+    .filter((player) => player.name || player.uid || player.role || player.playerLogoUrl);
 }
 function rosterKey(value: unknown) { return JSON.stringify(cleanRoster(value)); }
 
@@ -29,9 +36,6 @@ export async function POST(request: NextRequest) {
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.ok) return NextResponse.json({ ok: false, message: result.message || "Unable to save team profile." }, { status: 502 });
 
-  // Read the saved team back from Sheets and verify the fields that this
-  // endpoint owns. This prevents a false success if Apps Script accepted the
-  // request but did not persist the player logo URLs.
   const verifyResponse = await fetch(webhook, { method: "GET", cache: "no-store", headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0" } });
   const verifyPayload = await verifyResponse.json().catch(() => ({}));
   const verifiedTeam = Array.isArray(verifyPayload?.teams) ? verifyPayload.teams.find((team: any) => String(team?.slug ?? "") === String(session.teamSlug)) : null;
