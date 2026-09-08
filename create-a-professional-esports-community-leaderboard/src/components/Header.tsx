@@ -143,15 +143,11 @@ export function Header() {
             <MenuLink href="/team-login" icon={<LogIn className="h-4 w-4" />} label="Team Login" onClick={() => setMenuOpen(false)} />
             <MenuLink href="/" icon={<Crown className="h-4 w-4" />} label="Home" onClick={() => setMenuOpen(false)} active={pathname === "/"} />
           </div>
-
-          <div className="border-t border-white/10 p-3"><Link href="/admin" onClick={() => setMenuOpen(false)} className="flex min-h-11 items-center gap-3 rounded-xl border border-gold/20 bg-gold/5 px-3 text-sm font-bold text-gold transition hover:bg-gold hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"><ShieldIcon />Admin Control Center</Link></div>
         </aside>
       </div>
     </>
   );
 }
-
-function ShieldIcon() { return <span className="grid h-5 w-5 place-items-center rounded-full border border-current text-[10px]">✓</span>; }
 
 function MenuLink({ href, icon, label, onClick, active = false }: { href: string; icon: React.ReactNode; label: string; onClick?: () => void; active?: boolean }) {
   return <Link href={href} onClick={onClick} aria-current={active ? "page" : undefined} className={`flex items-center gap-3 rounded-md px-3 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold ${active ? "bg-gold text-black" : "text-slate-200 hover:bg-gold hover:text-black"}`}>{icon}{label}</Link>;
