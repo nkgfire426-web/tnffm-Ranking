@@ -81,7 +81,6 @@ function ensureSheet_(name){
 }
 function setupTNFFM(){ Object.keys(T).forEach(function(k){ensureSheet_(T[k]);}); return ok_({message:'TNFFM sheet structure is ready.',tabs:Object.keys(T).map(function(k){return T[k];})}); }
 
-/* Reads never call ensureSheet_, insert sheets, rewrite headers, or freeze rows. */
 function read_(name){
   var sh=sheet_(name,false), data=sh.getDataRange().getDisplayValues();
   if(data.length<2) return [];
@@ -135,11 +134,10 @@ function publicData_(){
   var text=JSON.stringify(data); if(text.length<95000)cache.put('tnffm_public_v4',text,CACHE_SECONDS);
   return data;
 }
-
 function saveTeams_(items){
   var old=teams_(), byId={}, byName={}, used={}; old.forEach(function(t){byId[t.teamId]=t;byName[t.teamName.toLowerCase()]=t;});
   var stamp=now_();
-  var out=(items||[]).filter(Boolean).map(function(x){var name=s(prop_(x,['teamName','Team Name','Team']));if(!name)return null;var oldx=byId[s(prop_(x,['teamId','Team ID','id']))]||byName[name.toLowerCase()]||{};var sl=s(prop_(x,['slug','Slug']))||oldx.slug||slug_(name),base=sl,z=2;while(used[sl.toLowerCase()])sl=base+'-'+z++;used[sl.toLowerCase()]=1;return{teamId:s(prop_(x,['teamId','Team ID','id']))||oldx.teamId||uid_('TN'),teamName:name,slug:sl,logoUrl:s(prop_(x,['logoUrl','Logo URL','LogoURL'])),bannerUrl:s(prop_(x,['bannerUrl','Banner URL'])),description:s(prop_(x,['description','Description'])),mobileNumber:s(prop_(x,['mobileNumber','Mobile Number'])),status:s(prop_(x,['status','Status']))||'Active',registrationStatus:s(prop_(x,['registrationStatus','Registration Status']))||'Registered',roster:Array.isArray(x.roster)?x.roster:[],createdAt:s(prop_(x,['createdAt','Created At']))||oldx.createdAt||stamp,updatedAt:stamp};}).filter(Boolean);
+  var out=(items||[]).filter(Boolean).map(function(x){var name=s(prop_(x,['teamName','Team Name','Team']));if(!name)return null;var oldx=byId[s(prop_(x,['teamId','Team ID','id']))]||byName[name.toLowerCase()]||{};var sl=s(prop_(x,['slug','Slug']))||oldx.slug||slug_(name),base=sl,z=2;while(used[sl.toLowerCase()])sl=base+'-'+z++;used[sl.toLowerCase()]=1;return{teamId:s(prop_(x,['teamId','Team ID','id']))||oldx.teamId||uid_('TN'),teamName:name,slug:sl,logoUrl:s(prop_(x,['logoUrl','Logo URL','LogoURL']))||oldx.logoUrl||'',bannerUrl:s(prop_(x,['bannerUrl','Banner URL']))||oldx.bannerUrl||'',description:s(prop_(x,['description','Description']))||oldx.description||'',mobileNumber:s(prop_(x,['mobileNumber','Mobile Number']))||oldx.mobileNumber||'',status:s(prop_(x,['status','Status']))||oldx.status||'Active',registrationStatus:s(prop_(x,['registrationStatus','Registration Status']))||oldx.registrationStatus||'Registered',roster:Array.isArray(x.roster)?x.roster:(oldx.roster||[]),createdAt:s(prop_(x,['createdAt','Created At']))||oldx.createdAt||stamp,updatedAt:stamp};}).filter(Boolean);
   write_(T.TEAMS,out);
   var players=[]; out.forEach(function(t){(t.roster||[]).forEach(function(x,j){if(!x)return;var name=s(prop_(x,['name','playerName','Player Name'])),uid=s(prop_(x,['uid','UID'])),logo=s(prop_(x,['playerLogoUrl','Player Logo URL']));if(!name&&!uid&&!logo)return;players.push({playerId:s(prop_(x,['playerId','Player ID','id']))||t.teamId+'-P-'+(j+1),teamId:t.teamId,teamName:t.teamName,playerName:name,uid:uid,role:s(prop_(x,['role','Role'])),playerLogoUrl:logo,status:s(prop_(x,['status','Status']))||'Active',createdAt:s(prop_(x,['createdAt','Created At']))||stamp,updatedAt:stamp});});});
   write_(T.ROSTERS,players);
@@ -218,7 +216,7 @@ function doPost(e){
     if(!sections.length)return fail_('No supported data section was supplied.','NO_SECTIONS');
     lock=LockService.getScriptLock(); lock.waitLock(20000);
     sections.forEach(function(section){writeIncoming_(section,incoming[section]);});
-    if(incoming[T.TEAMS]||incoming[T.RESULTS]||incoming[T.EVENTS])rebuildRankings_();
+    /* Community Rankings is an independent official source of truth. Team/event/result sync must never overwrite it. */
     SpreadsheetApp.flush(); invalidate_();
     return ok_({saved:true,verified:true,readBackVerified:true,savedSections:sections,savedAt:now_(),data:publicData_()});
   }catch(ex){return fail_(err_(ex),'WRITE_FAILED');}
