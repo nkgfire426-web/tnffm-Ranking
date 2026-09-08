@@ -3,10 +3,11 @@ import { cookies } from "next/headers";
 
 const COOKIE_NAME = "tnffm_team_session";
 
-// Keep team login functional even when a dedicated Vercel secret has not been added yet.
-// TEAM_AUTH_SECRET should still be set in production for a custom signing key.
+// TEAM_AUTH_SECRET is preferred. ADMIN_PASSWORD remains a compatibility fallback
+// so existing production deployments do not require an immediate environment
+// variable migration. There is deliberately no hardcoded signing secret.
 function secret() {
-  return process.env.TEAM_AUTH_SECRET || process.env.ADMIN_PASSWORD || "tnffm-team-session-v1";
+  return process.env.TEAM_AUTH_SECRET || process.env.ADMIN_PASSWORD || "";
 }
 
 export function hashPassword(password: string) {
@@ -14,19 +15,22 @@ export function hashPassword(password: string) {
 }
 
 export function createSession(username: string, teamSlug: string) {
+  const signingSecret = secret();
+  if (!signingSecret) throw new Error("Team session signing secret is not configured.");
   const payload = `${username}|${teamSlug}`;
-  const signature = crypto.createHmac("sha256", secret()).update(payload).digest("hex");
+  const signature = crypto.createHmac("sha256", signingSecret).update(payload).digest("hex");
   return Buffer.from(`${payload}|${signature}`).toString("base64url");
 }
 
 export function verifySession(value: string | undefined) {
-  if (!value) return null;
+  const signingSecret = secret();
+  if (!value || !signingSecret) return null;
   try {
     const decoded = Buffer.from(value, "base64url").toString("utf8");
     const parts = decoded.split("|");
     if (parts.length !== 3) return null;
     const [username, teamSlug, signature] = parts;
-    const expected = crypto.createHmac("sha256", secret()).update(`${username}|${teamSlug}`).digest("hex");
+    const expected = crypto.createHmac("sha256", signingSecret).update(`${username}|${teamSlug}`).digest("hex");
     if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
     return { username, teamSlug };
   } catch {
