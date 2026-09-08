@@ -15,6 +15,39 @@ function safeEqual(left: string, right: string) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+function validateEvents(events: any[]) {
+  if (events.length > 5000) throw new Error("Events exceeds the supported limit.");
+  const ids = new Set<string>();
+  for (const event of events) {
+    const name = text(event?.name ?? event?.Name ?? event?.eventName);
+    if (!name) throw new Error("Every tournament announcement must have a name.");
+    const id = text(event?.id ?? event?.eventId ?? event?.["Event ID"]);
+    if (id) {
+      if (ids.has(id)) throw new Error(`Duplicate event ID: ${id}`);
+      ids.add(id);
+    }
+    if (event?.published === true) {
+      const matches = Number(event?.matchesPlayed ?? event?.["Matches Played"] ?? 0);
+      if (!Number.isFinite(matches) || matches <= 0) throw new Error(`${name}: Matches Played must be greater than 0 before publishing.`);
+      const prize = Number(String(event?.prize ?? event?.prizePool ?? "").replace(/[^0-9.]/g, "")) || 0;
+      const status = text(event?.status).toLowerCase();
+      if (prize <= 1000 && status !== "official") throw new Error(`${name}: prize pool must be above Rs.1000 before publishing.`);
+      const results = Array.isArray(event?.results) ? event.results.filter((r: any) => text(r?.teamName ?? r?.["Team Name"] ?? r?.team)) : [];
+      if (!results.length) throw new Error(`${name}: add at least one result before publishing.`);
+      const names = new Set<string>();
+      const ranks = new Set<number>();
+      for (const result of results) {
+        const team = text(result?.teamName ?? result?.["Team Name"] ?? result?.team).toLowerCase();
+        if (names.has(team)) throw new Error(`${name}: duplicate teams are not allowed.`);
+        names.add(team);
+        const rank = Number(result?.rank ?? result?.position ?? result?.Position ?? 0);
+        if (!Number.isInteger(rank) || rank < 1 || rank > 18 || ranks.has(rank)) throw new Error(`${name}: ranks must be unique integers from 1 to 18.`);
+        ranks.add(rank);
+      }
+    }
+  }
+}
+
 async function callSheets(url: string, method: "GET" | "POST", body?: unknown) {
   let target: URL;
   try {
@@ -49,28 +82,16 @@ async function callSheets(url: string, method: "GET" | "POST", body?: unknown) {
 
     const raw = await response.text();
     let data: any = null;
-    try {
-      data = raw ? JSON.parse(raw) : null;
-    } catch {
-      // handled below
-    }
+    try { data = raw ? JSON.parse(raw) : null; } catch { /* handled below */ }
 
     if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error("Google Apps Script HTTP 404. The configured Web App deployment is missing, deleted, or outdated.");
-      }
+      if (response.status === 404) throw new Error("Google Apps Script HTTP 404. The configured Web App deployment is missing, deleted, or outdated.");
       throw new Error(`Google Apps Script HTTP error (${response.status}). ${text(data?.message || data?.error || raw).slice(0, 500)}`);
     }
-
-    if (!data || data.ok === false) {
-      throw new Error(`Google Sheet request failed. ${text(data?.message || data?.error || raw || "Apps Script returned an invalid response.").slice(0, 500)}`);
-    }
-
+    if (!data || data.ok === false) throw new Error(`Google Sheet request failed. ${text(data?.message || data?.error || raw || "Apps Script returned an invalid response.").slice(0, 500)}`);
     return data;
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      throw new Error(`Google Apps Script request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds. Check the Web App deployment and Spreadsheet ID.`);
-    }
+    if (error instanceof Error && error.name === "AbortError") throw new Error(`Google Apps Script request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds. Check the Web App deployment and Spreadsheet ID.`);
     throw error;
   } finally {
     clearTimeout(timeout);
@@ -123,13 +144,11 @@ export async function POST(request: NextRequest) {
       if (Array.isArray(payload?.[key])) data[key] = payload[key];
     }
     if (!Object.keys(data).length) return NextResponse.json({ ok: false, message: "No supported data section was supplied." }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    if (Array.isArray(data.events)) validateEvents(data.events);
 
     const saved = await callSheets(url, "POST", data);
-    if (saved?.verified === false || saved?.saved === false) {
-      throw new Error(text(saved?.message || saved?.error || "Google Apps Script did not confirm the write."));
-    }
+    if (saved?.verified === false || saved?.saved === false) throw new Error(text(saved?.message || saved?.error || "Google Apps Script did not confirm the write."));
 
-    // Never report success until a fresh GET sees the records.
     const fresh = await callSheets(url, "GET");
     if (Array.isArray(data.teams)) verifyTeams(data.teams, fresh.teams);
     if (Array.isArray(data.rankings)) verifyKeys(data.rankings, fresh.rankings, "Rankings", rankingKey);
@@ -141,24 +160,15 @@ export async function POST(request: NextRequest) {
     if (Array.isArray(data.submissions)) verifyKeys(data.submissions, fresh.submissions, "Submissions", (x) => simpleKey(x, ["SubmissionID", "submissionId"]));
     if (Array.isArray(data.feedback)) verifyKeys(data.feedback, fresh.feedback, "Feedback", (x) => simpleKey(x, ["FeedbackID", "feedbackId"]));
 
-    // Clear this server instance immediately. Other warm Vercel instances expire
-    // their short cache naturally, while Next.js path/tag invalidation handles
-    // framework-level caches best-effort.
     clearSheetPayloadCache();
     try { revalidateTag("tnffm-sheet"); } catch { /* verified Sheet write remains successful */ }
-    for (const path of ["/", "/ranking", "/teams", "/tracked-events", "/admin", "/collaborators", "/news"]) {
+    for (const path of ["/", "/ranking", "/teams", "/tracked-events", "/tournament-announcements", "/admin", "/admin/tournament-announcements", "/collaborators", "/news"]) {
       try { revalidatePath(path); } catch { /* verified Sheet write remains successful */ }
     }
 
-    return NextResponse.json(
-      { ...saved, ok: true, saved: true, verified: true, googleSheets: true, readBackVerified: true },
-      { headers: { "Cache-Control": "no-store" } }
-    );
+    return NextResponse.json({ ...saved, ok: true, saved: true, verified: true, googleSheets: true, readBackVerified: true }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Admin Google Sheets save error:", error);
-    return NextResponse.json(
-      { ok: false, saved: false, verified: false, readBackVerified: false, message: error instanceof Error ? error.message : "Google Sheet update failed." },
-      { status: 502, headers: { "Cache-Control": "no-store" } }
-    );
+    return NextResponse.json({ ok: false, saved: false, verified: false, readBackVerified: false, message: error instanceof Error ? error.message : "Google Sheet update failed." }, { status: 502, headers: { "Cache-Control": "no-store" } });
   }
 }
