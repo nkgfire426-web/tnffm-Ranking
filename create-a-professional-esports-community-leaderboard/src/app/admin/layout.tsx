@@ -4,8 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, CalendarDays, ChevronRight, FileCheck2, Flag, Gauge, Handshake, MessageSquare, Newspaper, ShieldCheck, Trophy, Users } from "lucide-react";
 
+// These management links intentionally stay on /admin because the dashboard
+// implements Teams, Rankings, Events and Results as tabs. Do not point them at
+// /admin/teams, /admin/rankings, /admin/events or /admin/results unless those
+// routes are actually created.
 const groups = [
-  { title: "Management", items: [["Overview", "/admin", "overview", Gauge], ["Teams", "/admin?tab=teams", "teams", Users], ["Rankings", "/admin?tab=ranking", "ranking", Trophy], ["Events", "/admin?tab=events", "events", CalendarDays], ["Results", "/admin?tab=ranking", "ranking", BarChart3]] },
+  { title: "Management", items: [["Overview", "/admin", "overview", Gauge], ["Teams", "/admin?tab=teams", "teams", Users], ["Rankings", "/admin?tab=ranking", "ranking", Trophy], ["Events", "/admin?tab=events", "events", CalendarDays], ["Results", "/admin?tab=ranking", "results", BarChart3]] },
   { title: "Content", items: [["News", "/admin/news", "news", Newspaper], ["Collaborators", "/admin?tab=collaborators", "collaborators", Handshake]] },
   { title: "Community", items: [["Submissions", "/admin/submissions", "submissions", FileCheck2], ["Feedback", "/admin/feedback", "feedback", MessageSquare]] },
 ] as const;
