@@ -21,9 +21,6 @@ export type TournamentNews = {
   link?: string;
 };
 
-// Google Apps Script can legitimately need several seconds when it reads and
-// normalizes all canonical TNFFM tabs. Keep a bounded attempt and fall back to
-// the last good payload during short Sheets/network slowdowns.
 const SHEET_TIMEOUT_MS = 15000;
 
 function asNumber(value: unknown, fallback = 0) {
@@ -62,21 +59,27 @@ function normalizeLogo(url: unknown) {
   return normalizeUrl(url);
 }
 
-function normalizeRoster(value: unknown): { name: string; uid: string; playerLogoUrl?: string }[] {
+function normalizeRoster(value: unknown): { name: string; uid: string; role?: string; playerLogoUrl?: string; playerId?: string; status?: string; createdAt?: string; updatedAt?: string }[] {
   if (Array.isArray(value)) {
     return value
       .map((player: any) => ({
-        name: String(player?.name ?? player?.Name ?? "").trim(),
+        playerId: String(player?.playerId ?? player?.PlayerID ?? player?.["Player ID"] ?? "").trim() || undefined,
+        name: String(player?.name ?? player?.Name ?? player?.playerName ?? player?.["Player Name"] ?? "").trim(),
         uid: String(player?.uid ?? player?.UID ?? player?.Uid ?? "").trim(),
+        role: String(player?.role ?? player?.Role ?? "").trim() || undefined,
         playerLogoUrl:
           normalizeUrl(
             player?.playerLogoUrl ??
               player?.PlayerLogoURL ??
+              player?.["Player Logo URL"] ??
               player?.playerLogo ??
               player?.logoUrl ??
               player?.LogoURL ??
               ""
           ) || undefined,
+        status: String(player?.status ?? player?.Status ?? "").trim() || undefined,
+        createdAt: String(player?.createdAt ?? player?.["Created At"] ?? "").trim() || undefined,
+        updatedAt: String(player?.updatedAt ?? player?.["Updated At"] ?? "").trim() || undefined,
       }))
       .filter((player) => player.name || player.uid || player.playerLogoUrl);
   }
@@ -235,82 +238,70 @@ export async function getRankedTeams(): Promise<RankedTeam[]> {
         .filter(([name]: [string, any]) => Boolean(name))
     );
 
-    // Published Community Rankings in Google Sheets are the public source of truth.
-    // The sheet has existed in both API-style keys (rank/communityScore) and
-    // display-header keys (Rank/Community Score). Normalize both forms here so
-    // the public site never renders #0 or 0 points just because the sheet uses
-    // its human-readable column headers.
-    if (rankingsRaw.length > 0) {
-      return rankingsRaw
-        .filter((r: any) => String(r?.status ?? r?.Status ?? "Active").toLowerCase() !== "hidden")
-        .map((r: any) => {
-          const teamId = String(firstValue(r, "teamId", "Team ID", "id") ?? "").trim();
-          const rankingTeamName = String(firstValue(r, "teamName", "Team Name", "Team") ?? "").trim();
-          const base = byId.get(teamId) || byName.get(rankingTeamName.toLowerCase()) || {};
+    if (rankingsRaw.length === 0) return [];
 
-          const matches = numericFallback(r, ["matchesPlayed", "MatchesPlayed", "Matches Played"], asNumber(firstValue(base, "matchesPlayed", "MatchesPlayed", "Matches Played"), 0));
-          const kills = numericFallback(r, ["kills", "Kills"], asNumber(firstValue(base, "kills", "Kills"), 0));
-          const booyahs = numericFallback(r, ["booyahs", "Booyahs"], asNumber(firstValue(base, "booyahs", "Booyahs"), 0));
-          const rank = numericFallback(r, ["rank", "Rank", "Ranking"], 0);
-          const previousRank = numericFallback(r, ["previousRank", "PreviousRank", "Previous Rank"], 0);
-          const communityPoints = numericFallback(r, ["communityScore", "Community Score", "communityPoints", "CommunityPoints", "Community Points"], 0);
-          const championships = numericFallback(r, ["championships", "Championships"], asNumber(firstValue(base, "championships", "Championships"), 0));
-          const runnerUp = numericFallback(r, ["runnerUp", "RunnerUp", "Runner-Up"], asNumber(firstValue(base, "runnerUp", "RunnerUp", "Runner-Up"), 0));
-          const secondRunnerUp = numericFallback(r, ["secondRunnerUp", "SecondRunnerUp", "2nd Runner-Up"], asNumber(firstValue(base, "secondRunnerUp", "SecondRunnerUp", "2nd Runner-Up"), 0));
-          const top5Finishes = numericFallback(r, ["top5Finishes", "Top5Finishes", "Top 5 Finishes"], asNumber(firstValue(base, "top5Finishes", "Top5Finishes", "Top 5 Finishes"), 0));
-          const finalistFinishes = numericFallback(r, ["finalistFinishes", "FinalistFinishes", "Finalist"], asNumber(firstValue(base, "finalistFinishes", "FinalistFinishes", "Finalist"), 0));
-          const officialMatchFinalists = numericFallback(r, ["officialMatchFinalists", "OfficialMatchFinalists"], asNumber(firstValue(base, "officialMatchFinalists", "OfficialMatchFinalists"), 0));
-          const eventsPlayed = numericFallback(r, ["eventsPlayed", "EventsPlayed", "Events Played"], asNumber(firstValue(base, "eventsPlayed", "EventsPlayed", "Events Played"), 0));
-          const grandFinals = numericFallback(r, ["grandFinals", "GrandFinals", "Grand Finals"], asNumber(firstValue(base, "grandFinals", "GrandFinals", "Grand Finals"), 0));
-          const positionPoints = numericFallback(r, ["positionPoints", "PositionPoints", "Position Points"], asNumber(firstValue(base, "positionPoints", "PositionPoints", "Position Points"), 0));
-          const totalPoints = numericFallback(r, ["totalPoints", "TotalPoints", "Total Points"], asNumber(firstValue(base, "totalPoints", "TotalPoints", "Total Points"), 0));
+    return rankingsRaw
+      .filter((r: any) => String(r?.status ?? r?.Status ?? "Active").toLowerCase() !== "hidden")
+      .map((r: any) => {
+        const teamId = String(firstValue(r, "teamId", "Team ID", "id") ?? "").trim();
+        const rankingTeamName = String(firstValue(r, "teamName", "Team Name", "Team") ?? "").trim();
+        const base = byId.get(teamId) || byName.get(rankingTeamName.toLowerCase()) || {};
 
-          return normalizeTeam({
-            ...base,
-            ...r,
-            teamId: teamId || firstValue(base, "teamId", "Team ID", "id") || "",
-            teamName: rankingTeamName || firstValue(base, "teamName", "Team", "team", "Team Name") || "",
-            slug: firstValue(r, "slug", "Slug") ?? firstValue(base, "slug", "Slug"),
-            logoUrl: normalizeLogo(firstValue(r, "logoUrl", "Logo URL", "LogoURL") ?? firstValue(base, "logoUrl", "Logo URL", "LogoURL")),
-            bannerUrl: normalizeUrl(firstValue(r, "bannerUrl", "Banner URL", "BannerURL") ?? firstValue(base, "bannerUrl", "Banner URL", "BannerURL")),
-            roster: base.roster ?? base.Roster ?? [],
-            players: asNumber(firstValue(base, "players", "Players"), 0),
-            kills,
-            booyahs,
-            matchesPlayed: matches,
-            eventsPlayed,
-            championships,
-            runnerUp,
-            secondRunnerUp,
-            top5Finishes,
-            finalistFinishes,
-            officialMatchFinalists,
-            grandFinals,
-            positionPoints,
-            totalPoints,
-            communityPoints,
-            communityScore: communityPoints,
-            rank,
-            previousRank,
-            badge: String(firstValue(r, "badge", "Badge") ?? firstValue(base, "badge", "Badge") ?? ""),
-            rankingEligible: String(firstValue(r, "eligible", "Eligible") ?? "Yes").toLowerCase() !== "no" && String(firstValue(r, "eligible", "Eligible") ?? "true").toLowerCase() !== "false",
-          });
-        })
-        .filter((team: any) => team.teamName)
-        .sort((a: any, b: any) => {
-          const ar = Number(a.rank || 999999);
-          const br = Number(b.rank || 999999);
-          if (ar !== br) return ar - br;
-          return String(a.teamName).localeCompare(String(b.teamName));
-        }) as RankedTeam[];
-    }
+        const matches = numericFallback(r, ["matchesPlayed", "MatchesPlayed", "Matches Played"], asNumber(firstValue(base, "matchesPlayed", "MatchesPlayed", "Matches Played"), 0));
+        const kills = numericFallback(r, ["kills", "Kills"], asNumber(firstValue(base, "kills", "Kills"), 0));
+        const booyahs = numericFallback(r, ["booyahs", "Booyahs"], asNumber(firstValue(base, "booyahs", "Booyahs"), 0));
+        const rank = numericFallback(r, ["rank", "Rank", "Ranking"], 0);
+        const previousRank = numericFallback(r, ["previousRank", "PreviousRank", "Previous Rank"], 0);
+        const communityPoints = numericFallback(r, ["communityScore", "Community Score", "communityPoints", "CommunityPoints", "Community Points"], 0);
+        const championships = numericFallback(r, ["championships", "Championships"], asNumber(firstValue(base, "championships", "Championships"), 0));
+        const runnerUp = numericFallback(r, ["runnerUp", "RunnerUp", "Runner-Up"], asNumber(firstValue(base, "runnerUp", "RunnerUp", "Runner-Up"), 0));
+        const secondRunnerUp = numericFallback(r, ["secondRunnerUp", "SecondRunnerUp", "2nd Runner-Up"], asNumber(firstValue(base, "secondRunnerUp", "SecondRunnerUp", "2nd Runner-Up"), 0));
+        const top5Finishes = numericFallback(r, ["top5Finishes", "Top5Finishes", "Top 5 Finishes"], asNumber(firstValue(base, "top5Finishes", "Top5Finishes", "Top 5 Finishes"), 0));
+        const finalistFinishes = numericFallback(r, ["finalistFinishes", "FinalistFinishes", "Finalist"], asNumber(firstValue(base, "finalistFinishes", "FinalistFinishes", "Finalist"), 0));
+        const officialMatchFinalists = numericFallback(r, ["officialMatchFinalists", "OfficialMatchFinalists"], asNumber(firstValue(base, "officialMatchFinalists", "OfficialMatchFinalists"), 0));
+        const eventsPlayed = numericFallback(r, ["eventsPlayed", "EventsPlayed", "Events Played"], asNumber(firstValue(base, "eventsPlayed", "EventsPlayed", "Events Played"), 0));
+        const grandFinals = numericFallback(r, ["grandFinals", "GrandFinals", "Grand Finals"], asNumber(firstValue(base, "grandFinals", "GrandFinals", "Grand Finals"), 0));
+        const positionPoints = numericFallback(r, ["positionPoints", "PositionPoints", "Position Points"], asNumber(firstValue(base, "positionPoints", "PositionPoints", "Position Points"), 0));
+        const totalPoints = numericFallback(r, ["totalPoints", "TotalPoints", "Total Points"], asNumber(firstValue(base, "totalPoints", "TotalPoints", "Total Points"), 0));
 
-    // If the ranking tab is empty, calculate only from the live Google Sheets
-    // teams/events. Never use bundled demo/sample/local data on the public site.
-    if (teamsRaw.length === 0) return [];
-    const teams = teamsRaw.map((team: Record<string, any>) => normalizeTeam(team));
-    const events = await getTrackedEvents();
-    return rankTeams(teams, events);
+        return normalizeTeam({
+          ...base,
+          ...r,
+          teamId: teamId || firstValue(base, "teamId", "Team ID", "id") || "",
+          teamName: rankingTeamName || firstValue(base, "teamName", "Team", "team", "Team Name") || "",
+          slug: firstValue(r, "slug", "Slug") ?? firstValue(base, "slug", "Slug"),
+          logoUrl: normalizeLogo(firstValue(r, "logoUrl", "Logo URL", "LogoURL") ?? firstValue(base, "logoUrl", "Logo URL", "LogoURL")),
+          bannerUrl: normalizeUrl(firstValue(r, "bannerUrl", "Banner URL", "BannerURL") ?? firstValue(base, "bannerUrl", "Banner URL", "BannerURL")),
+          roster: base.roster ?? base.Roster ?? [],
+          players: asNumber(firstValue(base, "players", "Players"), 0),
+          kills,
+          booyahs,
+          matchesPlayed: matches,
+          eventsPlayed,
+          championships,
+          runnerUp,
+          secondRunnerUp,
+          top5Finishes,
+          finalistFinishes,
+          officialMatchFinalists,
+          grandFinals,
+          positionPoints,
+          totalPoints,
+          communityPoints,
+          communityScore: communityPoints,
+          rank,
+          previousRank,
+          badge: String(firstValue(r, "badge", "Badge") ?? firstValue(base, "badge", "Badge") ?? ""),
+          rankingEligible: String(firstValue(r, "eligible", "Eligible") ?? "Yes").toLowerCase() !== "no" && String(firstValue(r, "eligible", "Eligible") ?? "true").toLowerCase() !== "false",
+        });
+      })
+      .filter((team: any) => team.teamName)
+      .sort((a: any, b: any) => {
+        const ar = Number(a.rank || 999999);
+        const br = Number(b.rank || 999999);
+        if (ar !== br) return ar - br;
+        return String(a.teamName).localeCompare(String(b.teamName));
+      }) as RankedTeam[];
   } catch (error) {
     console.error("Ranking data error:", error);
     return [];
