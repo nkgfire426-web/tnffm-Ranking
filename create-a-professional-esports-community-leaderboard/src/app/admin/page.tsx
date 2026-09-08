@@ -22,9 +22,14 @@ export default function AdminPage() {
               <p className="text-[10px] font-black uppercase tracking-[0.24em] text-gold">TNFFM Administration</p>
               <p className="mt-1 text-sm text-slate-400">Protected control center. Sign in to synchronize and manage the connected Google Sheet data.</p>
             </div>
-            <Link href="/admin/news" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-gold/30 bg-gold/[0.06] px-4 py-3 text-center text-xs font-black uppercase tracking-wide text-gold transition hover:border-gold hover:bg-gold hover:text-black sm:text-sm">
-              Tournament News &amp; Updates
-            </Link>
+            <div className="grid grid-cols-2 gap-2 sm:flex">
+              <Link href="/admin/tournament-announcements" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-gold/30 bg-gold/[0.06] px-4 py-3 text-center text-xs font-black uppercase tracking-wide text-gold transition hover:border-gold hover:bg-gold hover:text-black sm:text-sm">
+                Tournament Announcements
+              </Link>
+              <Link href="/admin/news" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-xs font-black uppercase tracking-wide text-slate-300 transition hover:border-gold/30 hover:text-gold sm:text-sm">
+                News &amp; Updates
+              </Link>
+            </div>
           </div>
         </div>
         <div className="w-full min-w-0 overflow-x-hidden">
