@@ -1,6 +1,5 @@
 import { getRankedTeams, getRegisteredTeams } from "./google-sheets";
-import { getPublishedTrackedEvents } from "./events";
-import { rankTeams, slugify } from "./rankings";
+import { slugify } from "./rankings";
 import type { RankedTeam, RawTeam } from "./types";
 
 function mergeProfile(ranking: RankedTeam, profile?: RawTeam): RankedTeam {
@@ -33,22 +32,16 @@ function buildProfileMaps(registered: RawTeam[]) {
   return { byId, byName };
 }
 
-async function getLivePublicRanking(registered: RawTeam[]): Promise<RankedTeam[]> {
-  const events = await getPublishedTrackedEvents();
-  const hasPublishedResults = events.some(
-    (event) =>
-      Array.isArray(event.results) &&
-      event.results.length > 0 &&
-      Number(String(event.prize ?? "").replace(/[^0-9.]/g, "")) > 1000
-  );
-
-  if (!hasPublishedResults) return getRankedTeams();
-  return rankTeams(registered, events);
-}
-
+/**
+ * Official public ranking is sourced exclusively from the Community Rankings
+ * sheet. Published Events/Event Results are supporting data and must never
+ * silently replace the separately maintained ranking sheet on the public site.
+ */
 export async function getUnifiedTeamData(): Promise<RankedTeam[]> {
-  const registered = await getRegisteredTeams();
-  const ranked = await getLivePublicRanking(registered);
+  const [registered, ranked] = await Promise.all([
+    getRegisteredTeams(),
+    getRankedTeams(),
+  ]);
   const { byId, byName } = buildProfileMaps(registered);
 
   return ranked.map((ranking) => {
@@ -59,9 +52,17 @@ export async function getUnifiedTeamData(): Promise<RankedTeam[]> {
   });
 }
 
+/**
+ * Registered Teams Showcase is intentionally independent from Community
+ * Rankings. Every visible registered team is returned, even when it has no
+ * ranking row; such teams receive zero ranking values only in this combined
+ * profile representation and do not appear in the ranking table.
+ */
 export async function getPublicTeamData(): Promise<RankedTeam[]> {
-  const registered = await getRegisteredTeams();
-  const ranked = await getLivePublicRanking(registered);
+  const [registered, ranked] = await Promise.all([
+    getRegisteredTeams(),
+    getRankedTeams(),
+  ]);
   const { byId, byName } = buildProfileMaps(registered);
   const rankedById = new Map<string, RankedTeam>();
   const rankedByName = new Map<string, RankedTeam>();
