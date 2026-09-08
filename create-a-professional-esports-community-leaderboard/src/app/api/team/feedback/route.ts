@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTeamSession } from "@/lib/team-auth";
-import { getTeamBySlug } from "@/lib/google-sheets";
+import { getRegisteredTeams } from "@/lib/google-sheets";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -70,7 +70,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, message: "Feedback must be 2000 characters or less." }, { status: 400 });
     }
 
-    const team = await getTeamBySlug(session.teamSlug);
+    const teams = await getRegisteredTeams();
+    const team = teams.find((item) => String(item.slug || "").trim() === session.teamSlug);
     const result = await callWebhook({
       action: "submitFeedback",
       feedbackId: `FB-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
