@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTeamSession } from "@/lib/team-auth";
 import { getRegisteredTeams } from "@/lib/google-sheets";
+import { slugify } from "@/lib/rankings";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
 
     const teams = await getRegisteredTeams();
-    const team = teams.find((item) => String(item.slug || "").trim() === session.teamSlug);
+    const team = teams.find((item) => slugify(item.teamName) === session.teamSlug);
     const result = await callWebhook({
       action: "submitFeedback",
       feedbackId: `FB-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
