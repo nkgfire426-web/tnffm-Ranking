@@ -30,7 +30,6 @@ function isActivePath(pathname: string, href: string) {
 export function Header() {
   const pathname = usePathname();
   const [team, setTeam] = useState<TeamSession>(null);
-  const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -44,8 +43,6 @@ export function Header() {
         } else if (active) setTeam(null);
       } catch {
         if (active) setTeam(null);
-      } finally {
-        if (active) setLoading(false);
       }
     }
     loadSession();
@@ -97,7 +94,8 @@ export function Header() {
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             <Link href="/ranking" className="hidden rounded-lg px-4 py-2 text-sm font-semibold text-slate-300 transition hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold sm:inline-flex">Ranking</Link>
             <Link href="/teams" className="hidden rounded-lg px-4 py-2 text-sm font-semibold text-slate-300 transition hover:text-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold md:inline-flex">Community Teams</Link>
-            {!loading && team ? (
+            {!team && <span className="hidden sm:block" aria-hidden="true" />}
+            {team && (
               <Link href="/team-dashboard" className="group flex max-w-[58px] items-center justify-center rounded-xl border border-gold/40 bg-gradient-to-br from-gold/15 via-black/80 to-black/60 p-1.5 shadow-[0_0_18px_rgba(212,175,55,0.12)] transition duration-200 hover:border-gold hover:shadow-[0_0_24px_rgba(212,175,55,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold active:scale-95 sm:max-w-[210px] sm:justify-start sm:gap-2 sm:rounded-lg sm:p-1.5 sm:px-3 sm:py-2" title={`Open ${team.teamName || "Team"} Dashboard`}>
                 <span className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border-2 border-gold/70 bg-black shadow-[0_0_12px_rgba(212,175,55,0.18)] ring-2 ring-gold/10 transition group-hover:ring-gold/30 sm:h-9 sm:w-9 sm:border sm:ring-0">
                   <TeamLogo src={team.logoUrl} name={team.teamName || "Team"} size={38} />
@@ -105,13 +103,6 @@ export function Header() {
                 </span>
                 <span className="hidden min-w-0 text-left sm:block"><span className="block truncate text-xs text-slate-400">Team</span><span className="block truncate text-sm font-semibold text-white">{team.teamName}</span></span>
               </Link>
-            ) : (
-              <div className="group relative">
-                <button type="button" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-gold/30 px-3 py-2 text-sm font-semibold text-gold transition hover:bg-gold hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold sm:px-4" aria-haspopup="menu">
-                  <LogIn className="h-4 w-4" aria-hidden="true" /><span className="hidden xs:inline">Login</span>
-                </button>
-                <div className="invisible absolute right-0 top-11 w-56 translate-y-2 rounded-xl border border-white/10 bg-black/95 p-2 opacity-0 shadow-glow backdrop-blur-xl transition group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100"><MenuLink href="/team-login" icon={<LogIn className="h-4 w-4" />} label="Team Login" /></div>
-              </div>
             )}
           </div>
         </nav>
