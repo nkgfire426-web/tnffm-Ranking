@@ -1,53 +1,12 @@
-import {
-  getCachedSheetPayload,
-  getSheetReadInFlight,
-  setCachedSheetPayload,
-  setSheetReadInFlight,
-} from "./sheet-cache";
+import { getCachedSheetPayload, getSheetReadInFlight, setCachedSheetPayload, setSheetReadInFlight } from "./sheet-cache";
 
-export type EventResult = {
-  teamName: string;
-  teamSlug?: string;
-  rank: number;
-  positionPoints: number;
-  kills: number;
-  booyahs: number;
-  killRatio: number;
-  booyahRatio: number;
-  total: number;
-};
-
-export type TrackedEvent = {
-  id?: string;
-  name: string;
-  organizer: string;
-  organizerUrl?: string;
-  registrationUrl?: string;
-  teams: number;
-  totalSlots?: number;
-  registeredSlots?: number;
-  prize: string;
-  status: "Verified" | "Official" | "Pending" | "Rejected" | string;
-  stage?: "Upcoming" | "Started" | "Ongoing" | "Completed" | string;
-  counted: string;
-  date: string;
-  notes?: string;
-  matchesPlayed?: number;
-  published?: boolean;
-  results?: EventResult[];
-};
-
+export type EventResult = { teamName: string; teamSlug?: string; rank: number; positionPoints: number; kills: number; booyahs: number; killRatio: number; booyahRatio: number; total: number };
+export type TrackedEvent = { id?: string; name: string; organizer: string; organizerUrl?: string; registrationUrl?: string; teams: number; totalSlots?: number; registeredSlots?: number; prize: string; status: "Verified" | "Official" | "Pending" | "Rejected" | string; stage?: "Upcoming" | "Started" | "Ongoing" | "Completed" | string; counted: string; date: string; notes?: string; matchesPlayed?: number; published?: boolean; results?: EventResult[] };
 const SHEET_TIMEOUT_MS = 15000;
-
-function parseResults(value: unknown): EventResult[] {
-  if (Array.isArray(value)) return value as EventResult[];
-  if (typeof value !== "string" || !value.trim()) return [];
-  try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed as EventResult[] : []; } catch { return []; }
-}
+function parseResults(value: unknown): EventResult[] { if (Array.isArray(value)) return value as EventResult[]; if (typeof value !== "string" || !value.trim()) return []; try { const parsed: unknown = JSON.parse(value); return Array.isArray(parsed) ? parsed as EventResult[] : []; } catch { return []; } }
 function asNumber(value: unknown, fallback = 0) { const n = Number(value); return Number.isFinite(n) ? n : fallback; }
 function asBoolean(value: unknown) { if (value === true) return true; const text = String(value ?? "").trim().toLowerCase(); return text === "true" || text === "yes" || text === "1" || text === "published"; }
 function isHiddenStatus(value: unknown) { const status = String(value ?? "").trim().toLowerCase(); return ["hidden", "draft", "unpublished", "rejected", "inactive", "disabled"].includes(status); }
-
 function normalizeEvent(event: Record<string, unknown>): TrackedEvent {
   const matches = Math.max(0, Math.floor(asNumber(event.matchesPlayed ?? event.MatchesPlayed ?? event.matches ?? event.Matches, 0)));
   const results = parseResults(event.results ?? event.Results ?? event.resultData ?? event.ResultData).map((result) => {
@@ -59,28 +18,9 @@ function normalizeEvent(event: Record<string, unknown>): TrackedEvent {
     const rawTotal = r.total ?? r.Total ?? r.totalPoints ?? r.TotalPoints;
     return { teamName: String(r.teamName ?? r.TeamName ?? r.team ?? r.Team ?? "").trim(), ...(r.teamSlug || r.TeamSlug ? { teamSlug: String(r.teamSlug ?? r.TeamSlug).trim() } : {}), rank, positionPoints, kills, booyahs, killRatio: matches > 0 ? kills / matches : 0, booyahRatio: matches > 0 ? (booyahs / matches) * 100 : 0, total: Number.isFinite(Number(rawTotal)) ? Number(rawTotal) : positionPoints + kills };
   }).filter((result) => result.teamName);
-
-  const totalSlots = Math.max(0, Math.floor(asNumber(event.totalSlots ?? event.TotalSlots ?? event.slots ?? event.Slots, event.teams ?? event.Teams ?? 0)));
-  const registeredSlots = Math.min(totalSlots || Number.MAX_SAFE_INTEGER, Math.max(0, Math.floor(asNumber(event.registeredSlots ?? event.RegisteredSlots ?? event.registered ?? event.Registered, event.teams ?? event.Teams ?? 0))));
-  return {
-    id: String(event.id ?? event.ID ?? event.eventId ?? event.EventID ?? "").trim() || undefined,
-    name: String(event.name ?? event.Name ?? event.eventName ?? event.EventName ?? "").trim(),
-    organizer: String(event.organizer ?? event.Organizer ?? event.organisedBy ?? event.OrganisedBy ?? "").trim(),
-    organizerUrl: String(event.organizerUrl ?? event.OrganizerURL ?? event.organizerLink ?? event.OrganizerLink ?? "").trim() || undefined,
-    registrationUrl: String(event.registrationUrl ?? event.RegistrationURL ?? event.registrationLink ?? event.RegistrationLink ?? "").trim() || undefined,
-    teams: Math.max(0, Math.floor(asNumber(event.teams ?? event.Teams ?? event.teamCount ?? event.TeamCount, results.length))),
-    totalSlots,
-    registeredSlots,
-    prize: String(event.prize ?? event.Prize ?? event.prizePool ?? event.PrizePool ?? "").trim(),
-    status: String(event.status ?? event.Status ?? "Pending").trim() || "Pending",
-    stage: String(event.stage ?? event.Stage ?? event.eventStage ?? event.EventStage ?? "Upcoming").trim() || "Upcoming",
-    counted: String(event.counted ?? event.Counted ?? event.countedResult ?? event.CountedResult ?? "").trim(),
-    date: String(event.date ?? event.Date ?? event.eventDate ?? event.EventDate ?? "").trim(),
-    ...(event.notes != null || event.Notes != null || event.description != null || event.Description != null ? { notes: String(event.notes ?? event.Notes ?? event.description ?? event.Description ?? "") } : {}),
-    matchesPlayed: matches,
-    published: asBoolean(event.published ?? event.Published ?? event.isPublished ?? event.IsPublished),
-    results,
-  };
+  const totalSlots = Math.max(0, Math.floor(asNumber(event.totalSlots ?? event.TotalSlots ?? event.slots ?? event.Slots, asNumber(event.teams ?? event.Teams ?? 0))));
+  const registeredSlots = Math.min(totalSlots || Number.MAX_SAFE_INTEGER, Math.max(0, Math.floor(asNumber(event.registeredSlots ?? event.RegisteredSlots ?? event.registered ?? event.Registered, asNumber(event.teams ?? event.Teams ?? 0)))));
+  return { id: String(event.id ?? event.ID ?? event.eventId ?? event.EventID ?? "").trim() || undefined, name: String(event.name ?? event.Name ?? event.eventName ?? event.EventName ?? "").trim(), organizer: String(event.organizer ?? event.Organizer ?? event.organisedBy ?? event.OrganisedBy ?? "").trim(), organizerUrl: String(event.organizerUrl ?? event.OrganizerURL ?? event.organizerLink ?? event.OrganizerLink ?? "").trim() || undefined, registrationUrl: String(event.registrationUrl ?? event.RegistrationURL ?? event.registrationLink ?? event.RegistrationLink ?? "").trim() || undefined, teams: Math.max(0, Math.floor(asNumber(event.teams ?? event.Teams ?? event.teamCount ?? event.TeamCount, results.length))), totalSlots, registeredSlots, prize: String(event.prize ?? event.Prize ?? event.prizePool ?? event.PrizePool ?? "").trim(), status: String(event.status ?? event.Status ?? "Pending").trim() || "Pending", stage: String(event.stage ?? event.Stage ?? event.eventStage ?? event.EventStage ?? "Upcoming").trim() || "Upcoming", counted: String(event.counted ?? event.Counted ?? event.countedResult ?? event.CountedResult ?? "").trim(), date: String(event.date ?? event.Date ?? event.eventDate ?? event.EventDate ?? "").trim(), ...(event.notes != null || event.Notes != null || event.description != null || event.Description != null ? { notes: String(event.notes ?? event.Notes ?? event.description ?? event.Description ?? "") } : {}), matchesPlayed: matches, published: asBoolean(event.published ?? event.Published ?? event.isPublished ?? event.IsPublished), results };
 }
 function normalizeEvents(payload: any): TrackedEvent[] | null { if (!payload || !Array.isArray(payload.events)) return null; return payload.events.map((event: Record<string, unknown>) => normalizeEvent(event)).filter((event: TrackedEvent) => event.name.length > 0); }
 async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
@@ -93,4 +33,4 @@ async function fetchEventsFromGoogleSheets(): Promise<TrackedEvent[] | null> {
   setSheetReadInFlight(request); return normalizeEvents(await request);
 }
 export async function getTrackedEvents(): Promise<TrackedEvent[]> { return (await fetchEventsFromGoogleSheets()) ?? []; }
-export async function getPublishedTrackedEvents(): Promise<TrackedEvent[]> { const events = await getTrackedEvents(); return events.filter((event) => { const status = String(event.status ?? "").trim().toLowerCase(); return event.published === true && !isHiddenStatus(status); }); }
+export async function getPublishedTrackedEvents(): Promise<TrackedEvent[]> { const events = await getTrackedEvents(); return events.filter((event) => event.published === true && !isHiddenStatus(event.status)); }
