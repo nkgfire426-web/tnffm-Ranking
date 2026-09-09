@@ -5,8 +5,6 @@ import { Podium } from "@/components/Podium";
 import { RecentUpdates } from "@/components/RecentUpdates";
 import { RankingsInsights } from "@/components/RankingsInsights";
 import { StatsCards } from "@/components/StatsCards";
-import { TrackedEventsPreview } from "@/components/TrackedEventsPreview";
-import { getPublishedTrackedEvents } from "@/lib/events";
 import { getTournamentNews } from "@/lib/google-sheets";
 import { getUnifiedTeamData } from "@/lib/site-data";
 
@@ -15,10 +13,9 @@ export const revalidate = 0;
 
 // Production safety marker: this page must render only from the current main branch build.
 export default async function Home() {
-  const [teams, news, events] = await Promise.all([
+  const [teams, news] = await Promise.all([
     getUnifiedTeamData(),
     getTournamentNews(),
-    getPublishedTrackedEvents(),
   ]);
 
   return (
@@ -29,7 +26,6 @@ export default async function Home() {
       <Podium teams={teams} />
       <RankingsInsights teams={teams} news={news} />
       <LeaderboardTable teams={teams} />
-      <TrackedEventsPreview events={events} />
       <RecentUpdates teams={teams} />
     </main>
   );
