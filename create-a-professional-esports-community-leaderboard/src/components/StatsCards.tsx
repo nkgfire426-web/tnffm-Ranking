@@ -3,13 +3,13 @@ import { RankedTeam } from "@/lib/types";
 
 export function StatsCards({ teams }: { teams: RankedTeam[] }) {
   const totalChampionships = teams.reduce((sum, team) => sum + (Number(team.championships) || 0), 0);
-  const totalPoints = teams.reduce((sum, team) => sum + (Number(team.communityPoints) || 0), 0);
+  const totalScore = teams.reduce((sum, team) => sum + (Number(team.communityPoints) || 0), 0);
   const totalPlayers = teams.reduce((sum, team) => sum + Math.max(0, Number(team.players) || 0), 0);
 
   const stats: [string, string, LucideIcon][] = [
     ["Total Teams", teams.length.toString(), Users],
     ["Total Championships", totalChampionships.toString(), Award],
-    ["Total Community Points", totalPoints.toLocaleString(), BarChart3],
+    ["Total Community Score", totalScore.toLocaleString(), BarChart3],
     ["Total Registered Players", totalPlayers.toString(), Swords],
   ];
 
