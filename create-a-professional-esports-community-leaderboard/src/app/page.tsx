@@ -5,6 +5,7 @@ import { Podium } from "@/components/Podium";
 import { RecentUpdates } from "@/components/RecentUpdates";
 import { RankingsInsights } from "@/components/RankingsInsights";
 import { StatsCards } from "@/components/StatsCards";
+import { TeamCommunityHub } from "@/components/TeamCommunityHub";
 import { TrackedEventsPreview } from "@/components/TrackedEventsPreview";
 import { getPublishedTrackedEvents } from "@/lib/events";
 import { getTournamentNews } from "@/lib/google-sheets";
@@ -29,6 +30,7 @@ export default async function Home() {
       <Podium teams={teams} />
       <RankingsInsights teams={teams} news={news} />
       <LeaderboardTable teams={teams} />
+      <TeamCommunityHub teams={teams} />
       <TrackedEventsPreview events={events} />
       <RecentUpdates teams={teams} />
     </main>
