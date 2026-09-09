@@ -9,7 +9,13 @@ import { normalizeImageUrl } from "./TeamLogo";
 type TournamentNews = { id?: string; title: string; description?: string; date?: string; type?: string; status?: string; imageUrl?: string; link?: string };
 
 export function Hero({ teams, news = [] }: { teams: RankedTeam[]; news?: TournamentNews[] }) {
-  const updates = news.filter((item) => String(item.status || "Published").toLowerCase() !== "hidden").slice(0, 4);
+  const updates = news
+    .filter((item) => {
+      const status = String(item.status || "Published").trim().toLowerCase();
+      return status === "published" || status === "active";
+    })
+    .slice(0, 4);
+
   return <section className="relative overflow-hidden border-b border-gold/15 bg-[#050507]">
     <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_75%_20%,rgba(255,210,31,.10),transparent_28%),linear-gradient(180deg,#08080a,#050507)]" />
     <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/80 to-transparent" />
@@ -20,11 +26,11 @@ export function Hero({ teams, news = [] }: { teams: RankedTeam[]; news?: Tournam
         <div className="mt-5 flex items-center gap-4"><span className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-gold/30 bg-black p-2 sm:h-20 sm:w-20"><img src="/brand/tnffm-logo.png" alt="TNFFM Esports logo" className="h-full w-full object-contain" /></span><div><p className="text-xs font-semibold uppercase tracking-[.2em] text-slate-500">Official esports platform</p><h1 className="mt-1 font-rajdhani text-6xl font-black uppercase leading-[.82] text-white sm:text-8xl"><span className="gold-text">TNFFM</span></h1></div></div>
         <p className="mt-7 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg sm:leading-8">TamilNadu Free Fire MAX Esports Official — rankings, tournament results, team achievements and community performance.</p>
         <div className="mt-8 flex flex-wrap gap-3"><Link href="/ranking" className="group inline-flex items-center gap-2 rounded-xl bg-gold px-5 py-3.5 font-bold text-black transition hover:-translate-y-0.5 hover:bg-yellow-300"><Trophy className="h-4 w-4" />Explore Rankings <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" /></Link><Link href="/submit-results" className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/[.025] px-5 py-3.5 font-semibold text-slate-200 transition hover:-translate-y-0.5 hover:border-gold/35 hover:text-gold"><Send className="h-4 w-4" />Submit Results</Link></div>
-        <div className="mt-9 grid max-w-2xl grid-cols-3 gap-2 sm:gap-3"><InfoCard label="Teams tracked" value={teams.length.toString()} /><InfoCard label="Results" value="Verified" /><InfoCard label="Platform" value="TNFFM" /></div>
+        <div className="mt-9 grid max-w-2xl grid-cols-3 gap-2 sm:gap-3"><InfoCard label="Ranked teams" value={teams.length.toString()} /><InfoCard label="Community score" value={teams.reduce((sum, team) => sum + (Number(team.communityPoints) || 0), 0).toLocaleString()} /><InfoCard label="Championships" value={teams.reduce((sum, team) => sum + (Number(team.championships) || 0), 0).toString()} /></div>
       </motion.div>
       <motion.div initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15, duration: 0.65 }} className="glass relative overflow-hidden rounded-3xl border-white/10 bg-black/50 p-4 shadow-[0_30px_90px_rgba(0,0,0,.4)] sm:p-5">
         <div className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-gold to-transparent" /><div className="flex items-center justify-between border-b border-white/10 px-1 pb-4"><div><p className="text-[10px] font-black uppercase tracking-[.24em] text-gold">TNFFM Feed</p><h2 className="mt-1 font-rajdhani text-2xl font-bold text-white sm:text-3xl">Latest Updates</h2></div><Trophy className="h-6 w-6 text-gold" /></div>
-        <div className="mt-4 space-y-3">{updates.length ? updates.map((item, index) => <NewsItem key={item.id || `${item.title}-${index}`} item={item} />) : <div className="rounded-2xl border border-white/10 bg-white/[.025] p-5"><p className="text-[10px] font-black uppercase tracking-[.2em] text-slate-500">Latest update</p><h3 className="mt-2 font-rajdhani text-xl font-bold text-white">Final tournament leaderboard submissions are open</h3><p className="mt-2 text-sm leading-6 text-slate-400">Teams can submit their official completed tournament leaderboard for TNFFM ranking assessment.</p></div>}</div>
+        <div className="mt-4 space-y-3">{updates.length ? updates.map((item, index) => <NewsItem key={item.id || `${item.title}-${index}`} item={item} />) : <div className="rounded-2xl border border-white/10 bg-white/[.025] p-5"><p className="text-[10px] font-black uppercase tracking-[.2em] text-slate-500">No published updates</p><h3 className="mt-2 font-rajdhani text-xl font-bold text-white">No news is currently published</h3><p className="mt-2 text-sm leading-6 text-slate-400">Published TournamentNews entries from Google Sheets will appear here automatically.</p></div>}</div>
         <Link href="/news" className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-gold/20 bg-gold/5 px-4 py-3 text-sm font-bold text-gold transition hover:bg-gold/10">View all news <ArrowRight className="h-4 w-4" /></Link>
       </motion.div>
     </div>
