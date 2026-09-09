@@ -1,73 +1,8 @@
 import { Header } from "@/components/Header";
-import { getTournamentNews } from "@/lib/google-sheets";
-
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
-type Achievement = {
-  id?: string;
-  title: string;
-  description?: string;
-  date?: string;
-  imageUrl?: string;
-  status?: string;
-  type?: string;
-};
-
-export default async function AchievementShowcasePage() {
-  const records = await getTournamentNews();
-  const achievements: Achievement[] = records
-    .filter((item) => String(item.type || "").trim().toLowerCase() === "achievement")
-    .filter((item) => String(item.status || "Published").trim().toLowerCase() !== "hidden")
-    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
-
-  return (
-    <main className="min-h-screen bg-[#050507] text-white">
-      <Header />
-      <section className="relative overflow-hidden border-b border-gold/15">
-        <div className="absolute inset-0 bg-[url('/brand/tnffm-banner.jpg')] bg-cover bg-center tnffm-subpage-banner-bg" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#050507]/98 via-[#050507]/94 to-[#050507]/82" />
-        <div className="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
-          <p className="font-rajdhani text-xs font-black uppercase tracking-[.28em] text-gold">TNFFM • Official Showcase</p>
-          <h1 className="mt-3 max-w-5xl font-rajdhani text-4xl font-black uppercase leading-[.92] sm:text-6xl lg:text-7xl">
-            Community <span className="gold-text">Achievement Showcase</span>
-          </h1>
-          <p className="mt-5 max-w-3xl text-sm leading-6 text-slate-300 sm:text-base">
-            A separate achievement gallery managed by TNFFM administrators. This page contains only the achievement records created in the Showcase Manager.
-          </p>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-        {achievements.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[.025] p-10 text-center">
-            <p className="font-rajdhani text-2xl font-black uppercase text-white">No achievements published yet</p>
-            <p className="mt-2 text-sm text-slate-500">Achievements added by the administrator will appear here.</p>
-          </div>
-        ) : (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {achievements.map((item, index) => (
-              <article key={item.id || `${item.title}-${index}`} className="group overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/[.055] to-white/[.018] shadow-2xl transition duration-300 hover:-translate-y-1 hover:border-gold/35">
-                {item.imageUrl ? (
-                  <div className="aspect-[16/9] overflow-hidden bg-black/50">
-                    <img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy" />
-                  </div>
-                ) : (
-                  <div className="flex aspect-[16/9] items-center justify-center bg-gradient-to-br from-gold/10 via-black to-white/[.03]">
-                    <span className="font-rajdhani text-4xl font-black uppercase text-gold/70">TNFFM</span>
-                  </div>
-                )}
-                <div className="p-5">
-                  <p className="text-[9px] font-black uppercase tracking-[.2em] text-gold">Achievement</p>
-                  <h2 className="mt-2 font-rajdhani text-2xl font-black uppercase leading-tight text-white group-hover:text-gold">{item.title}</h2>
-                  {item.date && <p className="mt-2 text-xs font-bold uppercase tracking-wider text-slate-500">{item.date}</p>}
-                  {item.description && <p className="mt-4 whitespace-pre-line text-sm leading-6 text-slate-400">{item.description}</p>}
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-    </main>
-  );
+import { getCommunityAchievements } from "@/lib/achievements";
+export const dynamic="force-dynamic";
+export const revalidate=0;
+export default async function AchievementShowcasePage(){
+ const achievements=await getCommunityAchievements();
+ return <main className="min-h-screen bg-[#050507] text-white"><Header/><section className="relative overflow-hidden border-b border-gold/15"><div className="absolute inset-0 bg-[url('/brand/tnffm-banner.jpg')] bg-cover bg-center tnffm-subpage-banner-bg"/><div className="absolute inset-0 bg-gradient-to-r from-[#050507]/98 via-[#050507]/94 to-[#050507]/82"/><div className="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8"><p className="font-rajdhani text-xs font-black uppercase tracking-[.28em] text-gold">TNFFM • Official Showcase</p><h1 className="mt-3 max-w-5xl font-rajdhani text-4xl font-black uppercase leading-[.92] sm:text-6xl lg:text-7xl">Community <span className="gold-text">Achievement Showcase</span></h1><p className="mt-5 max-w-3xl text-sm leading-6 text-slate-300 sm:text-base">A separate achievement gallery managed by TNFFM administrators. These records come only from the Community Achievements sheet and never modify rankings, events, results or News.</p></div></section><section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">{achievements.length===0?<div className="rounded-2xl border border-white/10 bg-white/[.025] p-10 text-center"><p className="font-rajdhani text-2xl font-black uppercase text-white">No achievements published yet</p><p className="mt-2 text-sm text-slate-500">Achievements added by the administrator will appear here.</p></div>:<div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{achievements.map((item,index)=><article key={item.id||`${item.title}-${index}`} className="group overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/[.055] to-white/[.018] shadow-2xl transition duration-300 hover:-translate-y-1 hover:border-gold/35">{item.imageUrl?<div className="aspect-[16/9] overflow-hidden bg-black/50"><img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy"/></div>:<div className="flex aspect-[16/9] items-center justify-center bg-gradient-to-br from-gold/10 via-black to-white/[.03]"><span className="font-rajdhani text-4xl font-black uppercase text-gold/70">TNFFM</span></div>}<div className="p-5"><p className="text-[9px] font-black uppercase tracking-[.2em] text-gold">Achievement</p><h2 className="mt-2 font-rajdhani text-2xl font-black uppercase leading-tight text-white group-hover:text-gold">{item.title}</h2>{item.date&&<p className="mt-2 text-xs font-bold uppercase tracking-wider text-slate-500">{item.date}</p>}{item.description&&<p className="mt-4 whitespace-pre-line text-sm leading-6 text-slate-400">{item.description}</p>}{item.link&&<a href={item.link} target="_blank" rel="noreferrer" className="mt-4 inline-flex text-xs font-black uppercase tracking-wider text-gold hover:text-white">View achievement ↗</a>}</div></article>)}</div>}</section></main>;
 }
