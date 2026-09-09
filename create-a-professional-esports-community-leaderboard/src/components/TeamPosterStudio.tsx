@@ -7,142 +7,27 @@ import type { RankedTeam } from "@/lib/types";
 import { normalizeImageUrl } from "./TeamLogo";
 
 type PosterMode = "team" | "ranking";
-
 const posterWidth = 1080;
 const posterHeight = 1350;
-
-function safeFileName(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "tnffm-team";
-}
-
-function number(value: unknown) {
-  return Number(value || 0).toLocaleString("en-IN");
-}
-
+function safeFileName(value: string) { return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "tnffm-team"; }
+function number(value: unknown) { return Number(value || 0).toLocaleString("en-IN"); }
 function PosterCanvas({ team, mode, tagline, showRoster }: { team: RankedTeam; mode: PosterMode; tagline: string; showRoster: boolean }) {
   const roster = Array.isArray(team.roster) ? team.roster.filter((player) => player?.name || player?.uid).slice(0, 5) : [];
-  const rank = Number(team.rank || 0);
-  const logo = normalizeImageUrl(team.logoUrl);
-
-  return (
-    <div
-      data-tnffm-poster="true"
-      style={{
-        width: posterWidth,
-        height: posterHeight,
-        position: "relative",
-        overflow: "hidden",
-        background: "linear-gradient(145deg,#050505 0%,#0b0b0b 58%,#160609 100%)",
-        color: "#fff",
-        fontFamily: "Arial, Helvetica, sans-serif",
-      }}
-    >
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 82% 12%,rgba(212,175,55,.20),transparent 28%), radial-gradient(circle at 12% 88%,rgba(190,20,45,.18),transparent 30%)" }} />
-      <div style={{ position: "absolute", left: 52, right: 52, top: 48, height: 5, background: "linear-gradient(90deg,#d4af37,transparent)" }} />
-      <div style={{ position: "absolute", left: 52, top: 78, fontSize: 24, fontWeight: 800, letterSpacing: 7, color: "#d4af37" }}>TNFFM COMMUNITY</div>
-      <div style={{ position: "absolute", right: 52, top: 76, fontSize: 18, fontWeight: 700, letterSpacing: 3, color: "#a6a6a6" }}>OFFICIAL</div>
-
-      <div style={{ position: "absolute", left: 52, right: 52, top: 145, height: 480, border: "1px solid rgba(255,255,255,.12)", borderRadius: 32, background: "rgba(255,255,255,.035)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ width: 250, height: 250, borderRadius: 36, border: "3px solid rgba(212,175,55,.72)", background: "#050505", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 70px rgba(212,175,55,.16)" }}>
-          <img src={logo} alt="" crossOrigin="anonymous" style={{ width: 205, height: 205, objectFit: "contain" }} />
-        </div>
-        <div style={{ marginTop: 38, maxWidth: 880, textAlign: "center", fontSize: 62, lineHeight: 1, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase" }}>{team.teamName}</div>
-        <div style={{ marginTop: 20, fontSize: 21, fontWeight: 700, letterSpacing: 5, color: "#d4af37", textTransform: "uppercase" }}>
-          {mode === "ranking" ? "COMMUNITY RANKING PROFILE" : "COMMUNITY TEAM"}
-        </div>
-      </div>
-
-      {mode === "ranking" ? (
-        <div style={{ position: "absolute", left: 52, right: 52, top: 660, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 18 }}>
-          <div style={{ borderRadius: 22, padding: "28px 20px", background: "rgba(212,175,55,.10)", border: "1px solid rgba(212,175,55,.35)", textAlign: "center" }}><div style={{ fontSize: 18, color: "#aaa", letterSpacing: 3 }}>RANK</div><div style={{ marginTop: 8, fontSize: 64, fontWeight: 900, color: "#d4af37" }}>{rank > 0 ? `#${rank}` : "—"}</div></div>
-          <div style={{ borderRadius: 22, padding: "28px 20px", background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.10)", textAlign: "center" }}><div style={{ fontSize: 18, color: "#aaa", letterSpacing: 3 }}>SCORE</div><div style={{ marginTop: 8, fontSize: 64, fontWeight: 900 }}>{number(team.communityPoints)}</div></div>
-          <div style={{ borderRadius: 22, padding: "28px 20px", background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.10)", textAlign: "center" }}><div style={{ fontSize: 18, color: "#aaa", letterSpacing: 3 }}>EVENTS</div><div style={{ marginTop: 8, fontSize: 64, fontWeight: 900 }}>{number(team.eventsPlayed)}</div></div>
-        </div>
-      ) : (
-        <div style={{ position: "absolute", left: 52, right: 52, top: 675, textAlign: "center" }}>
-          <div style={{ fontSize: 24, color: "#a6a6a6", letterSpacing: 4, textTransform: "uppercase" }}>{tagline || "Tamil Nadu Free Fire MAX Esports"}</div>
-          <div style={{ marginTop: 30, display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
-            {["TNFFM COMMUNITY", "ESPORTS TEAM", "TAMIL NADU"].map((item) => <span key={item} style={{ padding: "13px 20px", borderRadius: 999, border: "1px solid rgba(212,175,55,.35)", color: "#d4af37", fontSize: 17, fontWeight: 800, letterSpacing: 2 }}>{item}</span>)}
-          </div>
-        </div>
-      )}
-
-      {mode === "team" && showRoster && roster.length > 0 && (
-        <div style={{ position: "absolute", left: 52, right: 52, top: 850 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: 4, color: "#d4af37" }}>TEAM ROSTER</div>
-          <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            {roster.map((player, index) => <div key={`${player.uid || player.name}-${index}`} style={{ padding: "18px 20px", borderRadius: 16, border: "1px solid rgba(255,255,255,.10)", background: "rgba(255,255,255,.035)", fontSize: 22, fontWeight: 700 }}>{player.name || `Player ${index + 1}`}</div>)}
-          </div>
-        </div>
-      )}
-
-      {mode === "ranking" && (
-        <div style={{ position: "absolute", left: 52, right: 52, top: 875, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 18 }}>
-          {[['CHAMPIONSHIPS', team.championships], ['RUNNER-UP', team.runnerUp], ['TOP 5', team.top5Finishes]].map(([label, value]) => <div key={String(label)} style={{ padding: "24px 18px", borderRadius: 18, border: "1px solid rgba(255,255,255,.10)", background: "rgba(255,255,255,.03)", textAlign: "center" }}><div style={{ fontSize: 15, color: "#8f8f8f", letterSpacing: 2 }}>{label}</div><div style={{ marginTop: 8, fontSize: 40, fontWeight: 900 }}>{number(value)}</div></div>)}
-        </div>
-      )}
-
-      <div style={{ position: "absolute", left: 52, right: 52, bottom: 62, display: "flex", alignItems: "flex-end", justifyContent: "space-between", borderTop: "1px solid rgba(255,255,255,.10)", paddingTop: 24 }}>
-        <div><div style={{ fontSize: 15, color: "#777", letterSpacing: 3 }}>TNFFM OFFICIAL COMMUNITY RANKINGS</div><div style={{ marginTop: 8, fontSize: 16, color: "#b5b5b5" }}>tamilnadu free fire max esports community</div></div>
-        {mode === "ranking" && <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#d4af37", fontSize: 16, fontWeight: 800 }}><Trophy size={20} /> VERIFIED RANKING DATA</div>}
-      </div>
-    </div>
-  );
+  const rank = Number(team.rank || 0); const logo = normalizeImageUrl(team.logoUrl);
+  return <div data-tnffm-poster="true" style={{ width: posterWidth, height: posterHeight, position: "relative", overflow: "hidden", background: "linear-gradient(145deg,#050505 0%,#0b0b0b 58%,#160609 100%)", color: "#fff", fontFamily: "Arial, Helvetica, sans-serif" }}>
+    <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 82% 12%,rgba(212,175,55,.20),transparent 28%), radial-gradient(circle at 12% 88%,rgba(190,20,45,.18),transparent 30%)" }} />
+    <div style={{ position: "absolute", left: 52, right: 52, top: 48, height: 5, background: "linear-gradient(90deg,#d4af37,transparent)" }} /><div style={{ position: "absolute", left: 52, top: 78, fontSize: 24, fontWeight: 800, letterSpacing: 7, color: "#d4af37" }}>TNFFM COMMUNITY</div><div style={{ position: "absolute", right: 52, top: 76, fontSize: 18, fontWeight: 700, letterSpacing: 3, color: "#a6a6a6" }}>OFFICIAL</div>
+    <div style={{ position: "absolute", left: 52, right: 52, top: 145, height: 480, border: "1px solid rgba(255,255,255,.12)", borderRadius: 32, background: "rgba(255,255,255,.035)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}><div style={{ width: 250, height: 250, borderRadius: 36, border: "3px solid rgba(212,175,55,.72)", background: "#050505", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 70px rgba(212,175,55,.16)" }}><img src={logo} alt="" crossOrigin="anonymous" style={{ width: 205, height: 205, objectFit: "contain" }} /></div><div style={{ marginTop: 38, maxWidth: 880, textAlign: "center", fontSize: 62, lineHeight: 1, fontWeight: 900, letterSpacing: 2, textTransform: "uppercase" }}>{team.teamName}</div><div style={{ marginTop: 20, fontSize: 21, fontWeight: 700, letterSpacing: 5, color: "#d4af37", textTransform: "uppercase" }}>{mode === "ranking" ? "COMMUNITY RANKING PROFILE" : "COMMUNITY TEAM"}</div></div>
+    {mode === "ranking" ? <><div style={{ position: "absolute", left: 52, right: 52, top: 660, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 18 }}><div style={{ borderRadius: 22, padding: "28px 20px", background: "rgba(212,175,55,.10)", border: "1px solid rgba(212,175,55,.35)", textAlign: "center" }}><div style={{ fontSize: 18, color: "#aaa", letterSpacing: 3 }}>RANK</div><div style={{ marginTop: 8, fontSize: 64, fontWeight: 900, color: "#d4af37" }}>{rank > 0 ? `#${rank}` : "—"}</div></div><div style={{ borderRadius: 22, padding: "28px 20px", background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.10)", textAlign: "center" }}><div style={{ fontSize: 18, color: "#aaa", letterSpacing: 3 }}>SCORE</div><div style={{ marginTop: 8, fontSize: 64, fontWeight: 900 }}>{number(team.communityPoints)}</div></div><div style={{ borderRadius: 22, padding: "28px 20px", background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.10)", textAlign: "center" }}><div style={{ fontSize: 18, color: "#aaa", letterSpacing: 3 }}>EVENTS</div><div style={{ marginTop: 8, fontSize: 64, fontWeight: 900 }}>{number(team.eventsPlayed)}</div></div></div><div style={{ position: "absolute", left: 52, right: 52, top: 875, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 18 }}>{[["CHAMPIONSHIPS", team.championships], ["RUNNER-UP", team.runnerUp], ["TOP 5", team.top5Finishes]].map(([label, value]) => <div key={String(label)} style={{ padding: "24px 18px", borderRadius: 18, border: "1px solid rgba(255,255,255,.10)", background: "rgba(255,255,255,.03)", textAlign: "center" }}><div style={{ fontSize: 15, color: "#8f8f8f", letterSpacing: 2 }}>{label}</div><div style={{ marginTop: 8, fontSize: 40, fontWeight: 900 }}>{number(value)}</div></div>)}</div></> : <div style={{ position: "absolute", left: 52, right: 52, top: 675, textAlign: "center" }}><div style={{ fontSize: 24, color: "#a6a6a6", letterSpacing: 4, textTransform: "uppercase" }}>{tagline || "Tamil Nadu Free Fire MAX Esports"}</div><div style={{ marginTop: 30, display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>{["TNFFM COMMUNITY", "ESPORTS TEAM", "TAMIL NADU"].map(item => <span key={item} style={{ padding: "13px 20px", borderRadius: 999, border: "1px solid rgba(212,175,55,.35)", color: "#d4af37", fontSize: 17, fontWeight: 800, letterSpacing: 2 }}>{item}</span>)}</div></div>}
+    {mode === "team" && showRoster && roster.length > 0 && <div style={{ position: "absolute", left: 52, right: 52, top: 850 }}><div style={{ fontSize: 18, fontWeight: 800, letterSpacing: 4, color: "#d4af37" }}>TEAM ROSTER</div><div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{roster.map((player, index) => <div key={`${player.uid || player.name}-${index}`} style={{ padding: "18px 20px", borderRadius: 16, border: "1px solid rgba(255,255,255,.10)", background: "rgba(255,255,255,.035)", fontSize: 22, fontWeight: 700 }}>{player.name || `Player ${index + 1}`}</div>)}</div></div>}
+    <div style={{ position: "absolute", left: 52, right: 52, bottom: 62, display: "flex", alignItems: "flex-end", justifyContent: "space-between", borderTop: "1px solid rgba(255,255,255,.10)", paddingTop: 24 }}><div><div style={{ fontSize: 15, color: "#777", letterSpacing: 3 }}>TNFFM OFFICIAL COMMUNITY RANKINGS</div><div style={{ marginTop: 8, fontSize: 16, color: "#b5b5b5" }}>tamilnadu free fire max esports community</div></div>{mode === "ranking" && <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#d4af37", fontSize: 16, fontWeight: 800 }}><Trophy size={20} /> VERIFIED RANKING DATA</div>}</div>
+  </div>;
 }
 
-export function TeamPosterStudio({ team }: { team: RankedTeam }) {
-  const [mode, setMode] = useState<PosterMode | null>(null);
-  const [tagline, setTagline] = useState("Tamil Nadu Free Fire MAX Esports");
-  const [showRoster, setShowRoster] = useState(true);
-  const [downloading, setDownloading] = useState(false);
-  const posterRef = useRef<HTMLDivElement>(null);
-
-  const fileBase = useMemo(() => safeFileName(team.teamName), [team.teamName]);
-
-  async function downloadPoster(selectedMode: PosterMode) {
-    if (!posterRef.current || downloading) return;
-    setDownloading(true);
-    try {
-      const dataUrl = await toPng(posterRef.current, { cacheBust: true, pixelRatio: 1, width: posterWidth, height: posterHeight });
-      const link = document.createElement("a");
-      link.download = `tnffm-${fileBase}-${selectedMode}-poster.png`;
-      link.href = dataUrl;
-      link.click();
-    } finally {
-      setDownloading(false);
-    }
-  }
-
-  return (
-    <>
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <button type="button" onClick={() => setMode("team")} className="group rounded-2xl border border-gold/25 bg-gold/5 p-4 text-left transition hover:border-gold/60 hover:bg-gold/10">
-          <div className="flex items-center gap-3"><Palette className="h-5 w-5 text-gold" /><span className="font-bold text-white">Create Team Poster</span></div>
-          <p className="mt-1 text-xs text-slate-400">Make a separate poster for {team.teamName} and download it.</p>
-        </button>
-        <button type="button" onClick={() => { setMode("ranking"); setShowRoster(false); }} className="group rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-gold/35 hover:bg-white/[0.06]">
-          <div className="flex items-center gap-3"><Trophy className="h-5 w-5 text-gold" /><span className="font-bold text-white">Download Ranking Poster</span></div>
-          <p className="mt-1 text-xs text-slate-400">Download the latest TNFFM ranking poster for this team.</p>
-        </button>
-      </div>
-
-      {mode && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={`${mode === "team" ? "Create team" : "Ranking"} poster`}>
-          <div className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#090909] shadow-2xl lg:flex-row">
-            <div className="flex-1 overflow-auto p-5 sm:p-7">
-              <div className="flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.25em] text-gold">TNFFM Poster Studio</p><h3 className="mt-1 font-rajdhani text-3xl font-bold uppercase text-white">{mode === "team" ? "Team Poster" : "Ranking Poster"}</h3></div><button type="button" onClick={() => setMode(null)} className="rounded-xl p-2 text-slate-400 hover:bg-white/5 hover:text-white" aria-label="Close poster studio"><X /></button></div>
-              {mode === "team" && <div className="mt-6 space-y-4"><label className="block text-sm font-semibold text-slate-300">Poster tagline<input value={tagline} onChange={(event) => setTagline(event.target.value.slice(0, 70))} className="mt-2 w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-gold/50" /></label><label className="flex items-center gap-3 text-sm text-slate-300"><input type="checkbox" checked={showRoster} onChange={(event) => setShowRoster(event.target.checked)} className="h-4 w-4 accent-yellow-500" /> Include team roster</label></div>}
-              <button type="button" disabled={downloading} onClick={() => void downloadPoster(mode)} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gold px-5 py-3 font-bold text-black transition hover:brightness-110 disabled:opacity-60"><Download className="h-5 w-5" />{downloading ? "Preparing PNG…" : "Download HD PNG"}</button>
-              <p className="mt-3 text-xs leading-5 text-slate-500">1080 × 1350 Instagram-ready PNG. Ranking values are taken from the current TNFFM public ranking data.</p>
-            </div>
-            <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-black/40 p-4 sm:p-8">
-              <div className="origin-center scale-[0.28] sm:scale-[0.38] md:scale-[0.45] lg:scale-[0.42] xl:scale-[0.48]" style={{ width: posterWidth * 0.48, height: posterHeight * 0.48 }}>
-                <div ref={posterRef}><PosterCanvas team={team} mode={mode} tagline={tagline} showRoster={showRoster} /></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
+export function TeamPosterStudio({ team, initialMode = null }: { team: RankedTeam; initialMode?: PosterMode | null }) {
+  const [mode, setMode] = useState<PosterMode | null>(initialMode); const [tagline, setTagline] = useState("Tamil Nadu Free Fire MAX Esports"); const [showRoster, setShowRoster] = useState(true); const [downloading, setDownloading] = useState(false); const posterRef = useRef<HTMLDivElement>(null); const fileBase = useMemo(() => safeFileName(team.teamName), [team.teamName]);
+  async function downloadPoster(selectedMode: PosterMode) { if (!posterRef.current || downloading) return; setDownloading(true); try { const dataUrl = await toPng(posterRef.current, { cacheBust: true, pixelRatio: 1, width: posterWidth, height: posterHeight }); const link = document.createElement("a"); link.download = `tnffm-${fileBase}-${selectedMode}-poster.png`; link.href = dataUrl; link.click(); } catch (error) { console.error("TNFFM poster export failed", error); window.alert("Unable to prepare the poster. Please try again."); } finally { setDownloading(false); } }
+  return <>{!initialMode && <div className="mt-6 grid gap-3 sm:grid-cols-2"><button type="button" onClick={() => setMode("team")} className="group rounded-2xl border border-gold/25 bg-gold/5 p-4 text-left transition hover:border-gold/60 hover:bg-gold/10"><div className="flex items-center gap-3"><Palette className="h-5 w-5 text-gold" /><span className="font-bold text-white">Create Team Poster</span></div><p className="mt-1 text-xs text-slate-400">Make a separate poster for {team.teamName} and download it.</p></button><button type="button" onClick={() => { setMode("ranking"); setShowRoster(false); }} className="group rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-gold/35 hover:bg-white/[0.06]"><div className="flex items-center gap-3"><Trophy className="h-5 w-5 text-gold" /><span className="font-bold text-white">Download Ranking Poster</span></div><p className="mt-1 text-xs text-slate-400">Download the latest TNFFM ranking poster for this team.</p></button></div>}
+    {mode && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={`${mode === "team" ? "Create team" : "Ranking"} poster`}><div className="flex max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#090909] shadow-2xl lg:flex-row"><div className="flex-1 overflow-auto p-5 sm:p-7"><div className="flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.25em] text-gold">TNFFM Poster Studio</p><h3 className="mt-1 font-rajdhani text-3xl font-bold uppercase text-white">{mode === "team" ? "Team Poster" : "Ranking Poster"}</h3></div><button type="button" onClick={() => setMode(null)} className="rounded-xl p-2 text-slate-400 hover:bg-white/5 hover:text-white" aria-label="Close poster studio"><X /></button></div>{mode === "team" && <div className="mt-6 space-y-4"><label className="block text-sm font-semibold text-slate-300">Poster tagline<input value={tagline} onChange={event => setTagline(event.target.value.slice(0, 70))} className="mt-2 w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-white outline-none focus:border-gold/50" /></label><label className="flex items-center gap-3 text-sm text-slate-300"><input type="checkbox" checked={showRoster} onChange={event => setShowRoster(event.target.checked)} className="h-4 w-4 accent-yellow-500" /> Include team roster</label></div>}<button type="button" disabled={downloading} onClick={() => void downloadPoster(mode)} className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gold px-5 py-3 font-bold text-black transition hover:brightness-110 disabled:opacity-60"><Download className="h-5 w-5" />{downloading ? "Preparing PNG…" : "Download HD PNG"}</button><p className="mt-3 text-xs leading-5 text-slate-500">1080 × 1350 Instagram-ready PNG. Ranking values are taken from the current TNFFM public ranking data.</p></div><div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-black/40 p-4 sm:p-8"><div className="origin-center scale-[0.28] sm:scale-[0.38] md:scale-[0.45] lg:scale-[0.42] xl:scale-[0.48]" style={{ width: posterWidth * 0.48, height: posterHeight * 0.48 }}><div ref={posterRef}><PosterCanvas team={team} mode={mode} tagline={tagline} showRoster={showRoster} /></div></div></div></div></div>}
+  </>;
 }
