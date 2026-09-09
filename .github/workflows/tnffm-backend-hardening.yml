@@ -23,9 +23,6 @@ jobs:
 
           path = Path("create-a-professional-esports-community-leaderboard/google-apps-script/Code.gs")
           text = path.read_text(encoding="utf-8")
-
-          # Validate the actual production backend API instead of requiring
-          # implementation-specific helper names from an older backend revision.
           required_patterns = [
               r"function\s+doGet\s*\(",
               r"function\s+doPost\s*\(",
@@ -35,37 +32,30 @@ jobs:
               r"(?:TABS|T)\.(?:TEAMS|ROSTERS|RANKINGS|EVENTS|RESULTS|NEWS|COLLAB|ACCOUNTS|SUBMISSIONS|FEEDBACK)",
               r"LockService\.getScriptLock\(\)",
           ]
-
           missing = [pattern for pattern in required_patterns if not re.search(pattern, text)]
           if missing:
               raise SystemExit("Missing backend markers/patterns: " + repr(missing))
-
           if "function deleteRegisteredTeam_" in text and not re.search(r"delete(?:registered)?team", text, re.I):
               raise SystemExit("deleteRegisteredTeam_ exists without a delete-team action mapping")
-
           print("TNFFM Google Apps Script backend validation passed")
 
       - name: Validate Next.js API surface
         shell: python
         run: |
           from pathlib import Path
-
           root = Path("create-a-professional-esports-community-leaderboard/src/app/api")
+          # Team Dashboard authentication endpoints were intentionally removed.
+          # Keep only public/admin/team-logo APIs that remain part of the current site.
           required = [
               "teams/route.ts",
               "admin/login/route.ts",
               "admin/save/route.ts",
               "admin/delete-team/route.ts",
-              "team/auth/login/route.ts",
-              "team/auth/logout/route.ts",
-              "team/me/route.ts",
               "team/logo/route.ts",
               "collaborators/route.ts",
               "tracked-events/route.ts",
           ]
-
           missing = [str(root / path) for path in required if not (root / path).is_file()]
           if missing:
               raise SystemExit("Missing API routes: " + repr(missing))
-
           print("TNFFM Next.js API surface validation passed")
