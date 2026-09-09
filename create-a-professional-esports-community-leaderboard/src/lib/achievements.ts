@@ -10,15 +10,12 @@ export type CommunityAchievement = {
 };
 
 const TIMEOUT_MS = 15000;
-
 function text(value: unknown) { return String(value ?? "").trim(); }
 function url(value: unknown) {
   const valueText = text(value);
   if (!valueText) return "";
-  try {
-    const parsed = new URL(valueText);
-    return parsed.protocol === "https:" || parsed.protocol === "http:" ? valueText : "";
-  } catch { return ""; }
+  try { const parsed = new URL(valueText); return parsed.protocol === "https:" || parsed.protocol === "http:" ? valueText : ""; }
+  catch { return ""; }
 }
 
 export async function getCommunityAchievements(): Promise<CommunityAchievement[]> {
@@ -29,17 +26,12 @@ export async function getCommunityAchievements(): Promise<CommunityAchievement[]
   try {
     const endpoint = new URL(webhook);
     endpoint.searchParams.set("_tnffm_achievements", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    const response = await fetch(endpoint.toString(), {
-      method: "GET",
-      cache: "no-store",
-      headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0" },
-      signal: controller.signal,
-    });
+    const response = await fetch(endpoint.toString(), { method: "GET", cache: "no-store", headers: { Accept: "application/json", "Cache-Control": "no-cache, no-store, max-age=0" }, signal: controller.signal });
     if (!response.ok) throw new Error(`Google Apps Script returned HTTP ${response.status}`);
     const payload: any = await response.json();
     if (!payload || payload.ok === false || !Array.isArray(payload.achievements)) return [];
     return payload.achievements
-      .map((item: any, index: number) => ({
+      .map((item: any, index: number): CommunityAchievement => ({
         id: text(item?.id ?? item?.ID) || `ACH-${index + 1}`,
         title: text(item?.title ?? item?.Title),
         description: text(item?.description ?? item?.Description),
@@ -49,17 +41,12 @@ export async function getCommunityAchievements(): Promise<CommunityAchievement[]
         link: url(item?.link ?? item?.Link),
         updatedAt: text(item?.updatedAt ?? item?.UpdatedAt ?? item?.["Updated At"]),
       }))
-      .filter((item: CommunityAchievement) => item.title && item.status.toLowerCase() !== "hidden")
+      .filter((item: CommunityAchievement) => item.title && (item.status || "").toLowerCase() !== "hidden")
       .sort((a: CommunityAchievement, b: CommunityAchievement) => {
-        const ad = Date.parse(a.date || "");
-        const bd = Date.parse(b.date || "");
+        const ad = Date.parse(a.date || ""), bd = Date.parse(b.date || "");
         if (Number.isFinite(ad) && Number.isFinite(bd) && ad !== bd) return bd - ad;
         return String(b.updatedAt || b.date || "").localeCompare(String(a.updatedAt || a.date || ""));
       });
-  } catch (error) {
-    console.error("Community achievements read error:", error);
-    return [];
-  } finally {
-    clearTimeout(timeout);
-  }
+  } catch (error) { console.error("Community achievements read error:", error); return []; }
+  finally { clearTimeout(timeout); }
 }
