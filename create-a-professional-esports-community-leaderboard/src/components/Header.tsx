@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import type React from "react";
 import { useEffect, useState } from "react";
-import { CalendarDays, Crown, Download, ListChecks, Megaphone, MoreVertical, Newspaper, Palette, ScrollText, Trophy, Users, X } from "lucide-react";
+import { CalendarDays, Crown, ListChecks, Megaphone, MoreVertical, Newspaper, Palette, ScrollText, Trophy, Users, X } from "lucide-react";
 
 type NavigationItem = { href: string; icon: React.ComponentType<{ className?: string }>; label: string };
 
@@ -14,7 +14,6 @@ const navigation: NavigationItem[] = [
   { href: "/teams", icon: Users, label: "Tamil Community Teams" },
   { href: "/team-details", icon: Crown, label: "Team Details" },
   { href: "/poster-studio", icon: Palette, label: "Team Poster Studio" },
-  { href: "/ranking-poster", icon: Download, label: "Download Ranking Poster" },
   { href: "/tracked-events", icon: CalendarDays, label: "Official Events" },
   { href: "/tournament-announcements", icon: Megaphone, label: "Tournament Announcements" },
   { href: "/news", icon: Newspaper, label: "News & Updates" },
