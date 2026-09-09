@@ -1,13 +1,23 @@
 import { Header } from "@/components/Header";
 import { TeamLogo } from "@/components/TeamLogo";
 import { getUnifiedTeamData } from "@/lib/site-data";
+import type { RankedTeam } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function AchievementShowcasePage() {
   const teams = await getUnifiedTeamData();
-  const ordered = [...teams].filter((team) => team.status !== "Banned").sort((a, b) => (b.championships - a.championships) || (b.runnerUp - a.runnerUp) || (b.secondRunnerUp - a.secondRunnerUp) || (b.top5Finishes - a.top5Finishes) || (a.rank - b.rank));
+  const ordered = [...teams]
+    .filter((team) => team.status !== "Banned")
+    .sort(
+      (a, b) =>
+        (b.championships - a.championships) ||
+        (b.runnerUp - a.runnerUp) ||
+        (b.secondRunnerUp - a.secondRunnerUp) ||
+        ((b.top5Finishes ?? 0) - (a.top5Finishes ?? 0)) ||
+        (a.rank - b.rank),
+    );
 
   return <main className="min-h-screen bg-[#050507] text-white">
     <Header />
@@ -22,7 +32,7 @@ export default async function AchievementShowcasePage() {
     </section>
     <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
       {ordered.length === 0 ? <div className="rounded-2xl border border-white/10 bg-white/[.025] p-10 text-center text-slate-500">No achievement records are available yet.</div> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {ordered.map((team) => <article key={team.slug} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[.025] p-5 transition hover:-translate-y-1 hover:border-gold/30 hover:bg-gold/[.025]"><div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/60 to-transparent opacity-60" /><div className="flex items-center gap-4"><div className="rounded-2xl border border-white/10 bg-black/60 p-1"><TeamLogo src={team.logoUrl} name={team.teamName} size={72} /></div><div className="min-w-0"><p className="text-[9px] font-black uppercase tracking-[.2em] text-gold">Rank #{team.rank}</p><h2 className="truncate font-rajdhani text-2xl font-black uppercase text-white group-hover:text-gold">{team.teamName}</h2><p className="text-xs text-slate-500">{team.communityPoints} official ranking points</p></div></div><div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4"><Stat label="Champions" value={team.championships} /><Stat label="Runner-Up" value={team.runnerUp} /><Stat label="3rd" value={team.secondRunnerUp} /><Stat label="Top 5" value={team.top5Finishes} /></div>{team.description && <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-400">{team.description}</p>}</article>)}
+        {ordered.map((team) => <article key={team.slug} className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[.025] p-5 transition hover:-translate-y-1 hover:border-gold/30 hover:bg-gold/[.025]"><div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/60 to-transparent opacity-60" /><div className="flex items-center gap-4"><div className="rounded-2xl border border-white/10 bg-black/60 p-1"><TeamLogo src={team.logoUrl} name={team.teamName} size={72} /></div><div className="min-w-0"><p className="text-[9px] font-black uppercase tracking-[.2em] text-gold">Rank #{team.rank}</p><h2 className="truncate font-rajdhani text-2xl font-black uppercase text-white group-hover:text-gold">{team.teamName}</h2><p className="text-xs text-slate-500">{team.communityPoints} official ranking points</p></div></div><div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4"><Stat label="Champions" value={team.championships} /><Stat label="Runner-Up" value={team.runnerUp} /><Stat label="3rd" value={team.secondRunnerUp} /><Stat label="Top 5" value={team.top5Finishes ?? 0} /></div>{team.description && <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-400">{team.description}</p>}</article>)}
       </div>}
     </section>
   </main>;
