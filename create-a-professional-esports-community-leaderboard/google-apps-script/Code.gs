@@ -150,10 +150,44 @@ function saveEvents_(items){
   write_(T.RESULTS,results);
 }
 function rebuildRankings_(){
-  var ts=teams_(),rs=read_(T.RESULTS),m={};ts.forEach(function(t){m[t.teamId]={teamId:t.teamId,teamName:t.teamName,slug:t.slug,eventsPlayed:0,championships:0,runnerUp:0,secondRunnerUp:0,top5Finishes:0,kills:0,booyahs:0,positionPoints:0,totalPoints:0,matchesPlayed:0,grandFinals:0};});
-  var ev={};rs.forEach(function(r){var tid=s(prop_(r,['teamId','Team ID']));if(!m[tid])return;var a=m[tid],eid=s(prop_(r,['eventId','Event ID']));if(!ev[eid])ev[eid]={};if(!ev[eid][tid]){ev[eid][tid]=1;a.eventsPlayed++;}var p=i(prop_(r,['position','Position','rank']));a.kills+=i(prop_(r,['kills','Kills']));a.booyahs+=i(prop_(r,['booyahs','Booyahs']));a.positionPoints+=n(prop_(r,['positionPoints','Position Points']));a.totalPoints+=n(prop_(r,['totalPoints','Total Points','total','Total']));if(p===1)a.championships++;if(p===2)a.runnerUp++;if(p===3)a.secondRunnerUp++;if(p<=5&&p>0)a.top5Finishes++;if(p<=18&&p>0)a.grandFinals++;});
-  var a=Object.keys(m).map(function(k){var x=m[k];x.communityScore=x.championships*100+x.runnerUp*70+x.secondRunnerUp*50+x.top5Finishes*10;x.winRate=x.eventsPlayed?x.championships/x.eventsPlayed*100:0;x.killRatio=x.matchesPlayed?x.kills/x.matchesPlayed:0;x.booyahRatio=x.matchesPlayed?x.booyahs/x.matchesPlayed*100:0;x.eligible=true;x.status='Active';x.updatedAt=now_();return x;});
-  a.sort(function(x,y){return y.communityScore-x.communityScore||y.totalPoints-x.totalPoints||y.kills-x.kills||x.teamName.localeCompare(y.teamName);});a.forEach(function(x,j){x.rank=j+1;});write_(T.RANKINGS,a);return a;
+  var ts=teams_(),rs=read_(T.RESULTS),events=read_(T.EVENTS),m={};
+  ts.forEach(function(t){m[t.teamId]={teamId:t.teamId,teamName:t.teamName,slug:t.slug,eventsPlayed:0,championships:0,runnerUp:0,secondRunnerUp:0,top5Finishes:0,kills:0,booyahs:0,positionPoints:0,totalPoints:0,matchesPlayed:0,grandFinals:0};});
+  var eventById={};
+  events.forEach(function(e){var eid=s(prop_(e,['eventId','Event ID']));if(eid)eventById[eid]=e;});
+  var ev={};
+  rs.forEach(function(r){
+    var tid=s(prop_(r,['teamId','Team ID']));
+    if(!m[tid])return;
+    var a=m[tid],eid=s(prop_(r,['eventId','Event ID']));
+    if(!ev[eid])ev[eid]={};
+    if(!ev[eid][tid]){
+      ev[eid][tid]=1;
+      a.eventsPlayed++;
+      var event=eventById[eid];
+      if(event)a.matchesPlayed+=i(prop_(event,['matchesPlayed','Matches Played']));
+    }
+    var p=i(prop_(r,['position','Position','rank']));
+    a.kills+=i(prop_(r,['kills','Kills']));
+    a.booyahs+=i(prop_(r,['booyahs','Booyahs']));
+    a.positionPoints+=n(prop_(r,['positionPoints','Position Points']));
+    a.totalPoints+=n(prop_(r,['totalPoints','Total Points','total','Total']));
+    if(p===1)a.championships++;
+    if(p===2)a.runnerUp++;
+    if(p===3)a.secondRunnerUp++;
+    if(p<=5&&p>0)a.top5Finishes++;
+    if(p<=18&&p>0)a.grandFinals++;
+  });
+  var a=Object.keys(m).map(function(k){
+    var x=m[k];
+    x.communityScore=x.championships*100+x.runnerUp*70+x.secondRunnerUp*50+x.top5Finishes*10;
+    x.winRate=x.eventsPlayed?x.championships/x.eventsPlayed*100:0;
+    x.killRatio=x.matchesPlayed?x.kills/x.matchesPlayed:0;
+    x.booyahRatio=x.matchesPlayed?x.booyahs/x.matchesPlayed*100:0;
+    x.eligible=true;x.status='Active';x.updatedAt=now_();return x;
+  });
+  a.sort(function(x,y){return y.communityScore-x.communityScore||y.totalPoints-x.totalPoints||y.kills-x.kills||x.teamName.localeCompare(y.teamName);});
+  a.forEach(function(x,j){x.rank=j+1;});
+  write_(T.RANKINGS,a);return a;
 }
 
 function accountRows_(){return read_(T.ACCOUNTS);}
