@@ -10,7 +10,7 @@ export const revalidate = 0;
 export default async function NewsPage() {
   const allNews = await getTournamentNews();
   const news = allNews
-    .filter(item => String(item.status || "Published").toLowerCase() !== "hidden")
+    .filter(item => ["published", "active"].includes(String(item.status || "").trim().toLowerCase()))
     .filter(item => String(item.title || "").trim())
     .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
 
