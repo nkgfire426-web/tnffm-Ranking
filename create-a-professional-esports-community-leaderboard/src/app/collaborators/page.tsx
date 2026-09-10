@@ -1,6 +1,7 @@
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { getCollaborators } from "@/lib/collaborators";
+import { normalizeImageUrl } from "@/components/TeamLogo";
 
 export const metadata = {
   title: "Collaborators | TNFFM",
@@ -13,13 +14,7 @@ export const revalidate = 0;
 function getLogoUrl(value: unknown) {
   const raw = typeof value === "string" ? value.trim() : "";
   if (!raw) return "";
-
-  const driveFile = raw.match(/drive\.google\.com\/file\/d\/([^/]+)/i);
-  const driveOpen = raw.match(/[?&]id=([^&]+)/i);
-  const driveId = driveFile?.[1] || (raw.includes("drive.google.com") ? driveOpen?.[1] : undefined);
-
-  if (driveId) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(driveId)}&sz=w512`;
-  return raw;
+  return normalizeImageUrl(raw);
 }
 
 function externalUrl(value: string) {
@@ -62,7 +57,7 @@ export default async function CollaboratorsPage() {
                     <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/10 bg-black/40 p-2">
                       {logoUrl ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={logoUrl} alt={`${c.name} logo`} className="h-full w-full object-contain" loading="lazy" />
+                        <img src={logoUrl} alt={`${c.name} logo`} className="h-full w-full object-contain" loading="lazy" referrerPolicy="no-referrer" />
                       ) : (
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Logo</span>
                       )}
