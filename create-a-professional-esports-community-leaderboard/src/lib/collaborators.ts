@@ -1,5 +1,6 @@
 import {
   getCachedSheetPayload,
+  getLastSheetPayload,
   getSheetReadInFlight,
   setCachedSheetPayload,
   setSheetReadInFlight,
@@ -81,7 +82,7 @@ async function fetchCollaboratorsFromGoogleSheets(): Promise<Collaborator[] | nu
   const existingRequest = getSheetReadInFlight();
   if (existingRequest) {
     const payload = await existingRequest;
-    return Array.isArray(payload?.collaborators) ? normalizeCollaborators(payload.collaborators) : null;
+    return Array.isArray(payload?.collaborators) ? normalizeCollaborators(payload.collaborators) : normalizeCollaborators(getLastSheetPayload()?.collaborators);
   }
 
   const request = (async () => {
@@ -106,7 +107,7 @@ async function fetchCollaboratorsFromGoogleSheets(): Promise<Collaborator[] | nu
       return payload;
     } catch (error) {
       console.error("Google Sheets collaborators read error:", error);
-      return null;
+      return getLastSheetPayload();
     } finally {
       clearTimeout(timeout);
     }
