@@ -8,197 +8,27 @@ export const revalidate = 0;
 
 const text = (v: unknown) => String(v ?? "").trim();
 const REQUEST_TIMEOUT_MS = 20_000;
+const SESSION_COOKIE = "tnffm_admin_session";
 
-function safeEqual(left: string, right: string) {
-  const a = Buffer.from(left, "utf8");
-  const b = Buffer.from(right, "utf8");
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
-
-function validUrl(value: unknown) {
+function safeEqual(left: string, right: string) { const a=Buffer.from(left,"utf8"), b=Buffer.from(right,"utf8"); return a.length===b.length&&crypto.timingSafeEqual(a,b); }
+function sessionSecret() { return process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD || ""; }
+function validSession(value: string) {
   try {
-    const u = new URL(text(value));
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
+    const [encoded, signature] = value.split(".");
+    if (!encoded || !signature) return false;
+    const issued = Buffer.from(encoded, "base64url").toString("utf8");
+    const expected = crypto.createHmac("sha256", sessionSecret()).update(issued).digest("hex");
+    if (!safeEqual(signature, expected)) return false;
+    const timestamp = Number(issued.split(":", 1)[0]);
+    return Number.isFinite(timestamp) && Date.now() - timestamp >= 0 && Date.now() - timestamp <= 8 * 60 * 60 * 1000;
+  } catch { return false; }
 }
-
-function validateEvents(events: any[]) {
-  if (events.length > 5000) throw new Error("Events exceeds the supported limit.");
-  const ids = new Set<string>();
-  for (const event of events) {
-    const name = text(event?.name ?? event?.Name ?? event?.eventName);
-    if (!name) throw new Error("Every tracked event must have a name.");
-    const id = text(event?.id ?? event?.eventId ?? event?.["Event ID"]);
-    if (id) {
-      if (ids.has(id)) throw new Error(`Duplicate event ID: ${id}`);
-      ids.add(id);
-    }
-    if (event?.published === true) {
-      const matches = Number(event?.matchesPlayed ?? event?.["Matches Played"] ?? 0);
-      if (!Number.isFinite(matches) || matches <= 0) throw new Error(`${name}: Matches Played must be greater than 0 before publishing.`);
-      const prize = Number(String(event?.prize ?? event?.prizePool ?? "").replace(/[^0-9.]/g, "")) || 0;
-      const status = text(event?.status).toLowerCase();
-      if (prize <= 1000 && status !== "official") throw new Error(`${name}: prize pool must be above Rs.1000 before publishing.`);
-      const results = Array.isArray(event?.results) ? event.results.filter((r: any) => text(r?.teamName ?? r?.["Team Name"] ?? r?.team)) : [];
-      if (!results.length) throw new Error(`${name}: add at least one result before publishing.`);
-      const names = new Set<string>();
-      const ranks = new Set<number>();
-      for (const result of results) {
-        const team = text(result?.teamName ?? result?.["Team Name"] ?? result?.team).toLowerCase();
-        if (names.has(team)) throw new Error(`${name}: duplicate teams are not allowed.`);
-        names.add(team);
-        const rank = Number(result?.rank ?? result?.position ?? result?.Position ?? 0);
-        if (!Number.isInteger(rank) || rank < 1 || rank > 18 || ranks.has(rank)) throw new Error(`${name}: ranks must be unique integers from 1 to 18.`);
-        ranks.add(rank);
-      }
-    }
-  }
-}
-
-function validateAnnouncements(items: any[]) {
-  if (items.length > 5000) throw new Error("Tournament announcements exceed the supported limit.");
-  const ids = new Set<string>();
-  for (const item of items) {
-    const id = text(item?.id ?? item?.announcementId ?? item?.["Announcement ID"]);
-    if (id) {
-      if (ids.has(id)) throw new Error(`Duplicate announcement ID: ${id}`);
-      ids.add(id);
-    }
-    const name = text(item?.name ?? item?.tournamentName ?? item?.["Tournament Name"]);
-    if (!name) throw new Error("Every tournament announcement must have a name.");
-    const org = text(item?.organizer ?? item?.organizationName ?? item?.["Organization Name"]);
-    if (!org) throw new Error(`${name}: organization name is required.`);
-    const stage = text(item?.stage ?? item?.Stage) || "Upcoming";
-    if (!["Upcoming", "Started", "Ongoing", "Completed"].includes(stage)) throw new Error(`${name}: invalid tournament stage.`);
-    const total = Math.max(0, Math.floor(Number(item?.totalSlots ?? item?.["Total Slots"]) || 0));
-    const registered = Math.max(0, Math.floor(Number(item?.registeredSlots ?? item?.["Registered Slots"]) || 0));
-    if (registered > total) throw new Error(`${name}: registered slots cannot exceed total slots.`);
-    if (item?.published === true) {
-      if (total <= 0) throw new Error(`${name}: total slots must be greater than 0 before publishing.`);
-      if (!validUrl(item?.registrationUrl ?? item?.["Registration URL"])) throw new Error(`${name}: registration URL must be http(s) before publishing.`);
-      if (!validUrl(item?.organizerUrl ?? item?.organizationUrl ?? item?.["Organization URL"])) throw new Error(`${name}: organization URL must be http(s) before publishing.`);
-    }
-  }
-}
-
-async function callSheets(url: string, method: "GET" | "POST", body?: unknown) {
-  let target: URL;
-  try {
-    target = new URL(url);
-  } catch {
-    throw new Error("GOOGLE_SHEETS_WEBHOOK_URL is not a valid URL.");
-  }
-  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec\/?$/i.test(target.origin + target.pathname)) {
-    throw new Error("GOOGLE_SHEETS_WEBHOOK_URL must be the current deployed Google Apps Script Web App /exec URL.");
-  }
-  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  target.searchParams.set("_tnffm_request", requestId);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    const response = await fetch(target.toString(), {
-      method,
-      cache: "no-store",
-      headers: {
-        Accept: "application/json",
-        "Cache-Control": "no-cache, no-store, max-age=0",
-        Pragma: "no-cache",
-        "X-TNFFM-Request-ID": requestId,
-        ...(method === "POST" ? { "Content-Type": "application/json" } : {}),
-      },
-      ...(method === "POST" ? { body: JSON.stringify(body ?? {}) } : {}),
-      signal: controller.signal,
-    });
-    const raw = await response.text();
-    let data: any = null;
-    try { data = raw ? JSON.parse(raw) : null; } catch {}
-    if (!response.ok) throw new Error(response.status === 404 ? "Google Apps Script HTTP 404. Deploy the current Code.gs as a Web app and update GOOGLE_SHEETS_WEBHOOK_URL." : `Google Apps Script HTTP error (${response.status}). ${text(data?.message || data?.error || raw).slice(0, 500)}`);
-    if (!data || data.ok === false) throw new Error(`Google Sheet request failed. ${text(data?.message || data?.error || raw || "Invalid Apps Script response.").slice(0, 500)}`);
-    return data;
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") throw new Error(`Google Apps Script request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds.`);
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-function key(v: unknown) { return text(v); }
-function eventKey(e: any) { return key(e?.eventId ?? e?.id ?? e?.["Event ID"]); }
-function announcementKey(a: any) { return key(a?.announcementId ?? a?.id ?? a?.["Announcement ID"]); }
-function resultKey(r: any) { return key(r?.resultId ?? r?.id ?? r?.["Result ID"]); }
-function teamIdOf(t: any) { return key(t?.teamId ?? t?.["Team ID"]); }
-function teamNameOf(t: any) { return key(t?.teamName ?? t?.["Team Name"] ?? t?.Team); }
-function rankingKey(r: any) { return teamIdOf(r) || `name:${teamNameOf(r).toLowerCase()}`; }
-function collaboratorKey(c: any) { return key(c?.collaboratorId ?? c?.id ?? c?.["Collaborator ID"]) || `name:${key(c?.name ?? c?.Name).toLowerCase()}`; }
-function simpleKey(x: any, keys: string[]) { for (const k of keys) { const v = key(x?.[k]); if (v) return v; } return ""; }
-
-function verifyKeys(expected: any[], actual: any[], name: string, getKey: (v: any) => string) {
-  if (!Array.isArray(actual)) throw new Error(`${name}: Google Sheets did not return a valid array.`);
-  const set = new Set(actual.map(getKey).filter(Boolean));
-  const missing = expected.map(getKey).filter(Boolean).find(k => !set.has(k));
-  if (missing) throw new Error(`${name} was written but read-back does not match. Missing record: ${missing}`);
-}
-
-function verifyTeams(expected: any[], actual: any[]) {
-  if (!Array.isArray(actual)) throw new Error("Teams: Google Sheets did not return a valid array.");
-  const ids = new Set(actual.map(teamIdOf).filter(Boolean).map(v => v.toLowerCase()));
-  const names = new Set(actual.map(teamNameOf).filter(Boolean).map(v => v.toLowerCase()));
-  for (const t of expected) {
-    const id = teamIdOf(t).toLowerCase();
-    const name = teamNameOf(t).toLowerCase();
-    if (!id && !name) continue;
-    if (id ? ids.has(id) || names.has(name) : names.has(name)) continue;
-    throw new Error(`Teams read-back missing: ${id}|${name}`);
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const payload = await request.json();
-    const configuredPassword = process.env.ADMIN_PASSWORD;
-    if (!configuredPassword || !safeEqual(String(payload?.password ?? ""), configuredPassword)) return NextResponse.json({ ok: false, message: "Invalid password." }, { status: 401 });
-    const url = process.env.GOOGLE_SHEETS_WEBHOOK_URL?.trim();
-    if (!url) return NextResponse.json({ ok: false, message: "GOOGLE_SHEETS_WEBHOOK_URL is not configured." }, { status: 503 });
-
-    const data: Record<string, any[]> = {};
-    for (const k of ["teams", "rankings", "events", "announcements", "rankingResults", "results", "news", "achievements", "collaborators", "accounts", "submissions", "feedback"]) {
-      if (Array.isArray(payload?.[k])) data[k] = payload[k];
-    }
-    if (!Object.keys(data).length) return NextResponse.json({ ok: false, message: "No supported data section was supplied." }, { status: 400 });
-    if (data.events) validateEvents(data.events);
-    if (data.announcements) validateAnnouncements(data.announcements);
-    if (data.achievements && data.achievements.length > 5000) throw new Error("Achievements exceeds the supported limit.");
-
-    const saved = await callSheets(url, "POST", data);
-    if (saved?.verified === false || saved?.saved === false) throw new Error(text(saved?.message || "Google Apps Script did not confirm the write."));
-
-    // The public Apps Script GET intentionally does not expose private admin
-    // datasets such as accounts, submissions and feedback. Verify only the
-    // datasets that the public read contract actually returns.
-    const fresh = await callSheets(url, "GET");
-    if (data.teams) verifyTeams(data.teams, fresh.teams);
-    if (data.rankings) verifyKeys(data.rankings, fresh.rankings, "Rankings", rankingKey);
-    if (data.events) verifyKeys(data.events, fresh.events, "Events", eventKey);
-    if (data.announcements) {
-      const published = data.announcements.filter(a => a?.published === true);
-      if (published.length) verifyKeys(published, fresh.announcements, "Tournament Announcements", announcementKey);
-    }
-    if (data.rankingResults || data.results) verifyKeys(data.rankingResults || data.results, fresh.rankingResults || fresh.results, "Event Results", resultKey);
-    if (data.news) verifyKeys(data.news, fresh.news, "News", x => simpleKey(x, ["ID", "id"]));
-    if (data.achievements) verifyKeys(data.achievements, fresh.achievements, "Achievements", x => simpleKey(x, ["ID", "id"]));
-    if (data.collaborators) verifyKeys(data.collaborators, fresh.collaborators, "Collaborators", collaboratorKey);
-
-    clearSheetPayloadCache();
-    try { revalidateTag("tnffm-sheet"); } catch {}
-    for (const path of ["/", "/ranking", "/teams", "/tracked-events", "/tournament-announcements", "/achievement-showcase", "/admin", "/admin/tournament-announcements", "/admin/achievement-showcase", "/collaborators", "/news"]) {
-      try { revalidatePath(path); } catch {}
-    }
-    return NextResponse.json({ ...saved, ok: true, saved: true, verified: true, googleSheets: true, readBackVerified: true }, { headers: { "Cache-Control": "no-store" } });
-  } catch (error) {
-    console.error("Admin Google Sheets save error:", error);
-    return NextResponse.json({ ok: false, saved: false, verified: false, readBackVerified: false, message: error instanceof Error ? error.message : "Google Sheet update failed." }, { status: 502, headers: { "Cache-Control": "no-store" } });
-  }
-}
+function requireAdmin(request: NextRequest) { const token=request.cookies.get(SESSION_COOKIE)?.value||""; return !!sessionSecret()&&validSession(token); }
+function validUrl(value: unknown) { try { const u=new URL(text(value)); return u.protocol==="http:"||u.protocol==="https:"; } catch { return false; } }
+function validateEvents(events:any[]) { if(events.length>5000)throw new Error("Events exceeds the supported limit."); const ids=new Set<string>(); for(const event of events){const name=text(event?.name??event?.Name??event?.eventName);if(!name)throw new Error("Every tracked event must have a name.");const id=text(event?.id??event?.eventId??event?.["Event ID"]);if(id){if(ids.has(id))throw new Error(`Duplicate event ID: ${id}`);ids.add(id)}if(event?.published===true){const matches=Number(event?.matchesPlayed??event?.["Matches Played"]??0);if(!Number.isFinite(matches)||matches<=0)throw new Error(`${name}: Matches Played must be greater than 0 before publishing.`);const prize=Number(String(event?.prize??event?.prizePool??"").replace(/[^0-9.]/g,""))||0;const status=text(event?.status).toLowerCase();if(prize<=1000&&status!=="official")throw new Error(`${name}: prize pool must be above Rs.1000 before publishing.`);const results=Array.isArray(event?.results)?event.results.filter((r:any)=>text(r?.teamName??r?.["Team Name"]??r?.team)):[];if(!results.length)throw new Error(`${name}: add at least one result before publishing.`);const names=new Set<string>(),ranks=new Set<number>();for(const result of results){const team=text(result?.teamName??result?.["Team Name"]??result?.team).toLowerCase();if(names.has(team))throw new Error(`${name}: duplicate teams are not allowed.`);names.add(team);const rank=Number(result?.rank??result?.position??result?.Position??0);if(!Number.isInteger(rank)||rank<1||rank>18||ranks.has(rank))throw new Error(`${name}: ranks must be unique integers from 1 to 18.`);ranks.add(rank)}}}}
+function validateAnnouncements(items:any[]) { if(items.length>5000)throw new Error("Tournament announcements exceed the supported limit."); const ids=new Set<string>(); for(const item of items){const id=text(item?.id??item?.announcementId??item?.["Announcement ID"]);if(id){if(ids.has(id))throw new Error(`Duplicate announcement ID: ${id}`);ids.add(id)}const name=text(item?.name??item?.tournamentName??item?.["Tournament Name"]);if(!name)throw new Error("Every tournament announcement must have a name.");const org=text(item?.organizer??item?.organizationName??item?.["Organization Name"]);if(!org)throw new Error(`${name}: organization name is required.`);const stage=text(item?.stage??item?.Stage)||"Upcoming";if(!["Upcoming","Started","Ongoing","Completed"].includes(stage))throw new Error(`${name}: invalid tournament stage.`);const total=Math.max(0,Math.floor(Number(item?.totalSlots??item?.["Total Slots"])||0));const registered=Math.max(0,Math.floor(Number(item?.registeredSlots??item?.["Registered Slots"])||0));if(registered>total)throw new Error(`${name}: registered slots cannot exceed total slots.`);if(item?.published===true){if(total<=0)throw new Error(`${name}: total slots must be greater than 0 before publishing.`);if(!validUrl(item?.registrationUrl??item?.["Registration URL"]))throw new Error(`${name}: registration URL must be http(s) before publishing.`);if(!validUrl(item?.organizerUrl??item?.organizationUrl??item?.["Organization URL"]))throw new Error(`${name}: organization URL must be http(s) before publishing.`)}}}
+async function callSheets(url:string,method:"GET"|"POST",body?:unknown){let target:URL;try{target=new URL(url)}catch{throw new Error("GOOGLE_SHEETS_WEBHOOK_URL is not a valid URL.")}if(!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec\/?$/i.test(target.origin+target.pathname))throw new Error("GOOGLE_SHEETS_WEBHOOK_URL must be the current deployed Google Apps Script Web App /exec URL.");const requestId=`${Date.now()}-${Math.random().toString(36).slice(2)}`;target.searchParams.set("_tnffm_request",requestId);const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);try{const response=await fetch(target.toString(),{method,cache:"no-store",headers:{Accept:"application/json","Cache-Control":"no-cache, no-store, max-age=0",Pragma:"no-cache","X-TNFFM-Request-ID":requestId,...(method==="POST"?{"Content-Type":"application/json"}:{})},...(method==="POST"?{body:JSON.stringify(body??{})}:{}),signal:controller.signal});const raw=await response.text();let data:any=null;try{data=raw?JSON.parse(raw):null}catch{}if(!response.ok)throw new Error(response.status===404?"Google Apps Script HTTP 404. Deploy the current Code.gs as a Web app and update GOOGLE_SHEETS_WEBHOOK_URL.":`Google Apps Script HTTP error (${response.status}). ${text(data?.message||data?.error||raw).slice(0,500)}`);if(!data||data.ok===false)throw new Error(`Google Sheet request failed. ${text(data?.message||data?.error||raw||"Invalid Apps Script response.").slice(0,500)}`);return data}catch(error){if(error instanceof Error&&error.name==="AbortError")throw new Error(`Google Apps Script request timed out after ${REQUEST_TIMEOUT_MS/1000} seconds.`);throw error}finally{clearTimeout(timeout)}}
+function key(v:unknown){return text(v)} function eventKey(e:any){return key(e?.eventId??e?.id??e?.["Event ID"])} function announcementKey(a:any){return key(a?.announcementId??a?.id??a?.["Announcement ID"])} function resultKey(r:any){return key(r?.resultId??r?.id??r?.["Result ID"])} function teamIdOf(t:any){return key(t?.teamId??t?.["Team ID"])} function teamNameOf(t:any){return key(t?.teamName??t?.["Team Name"]??t?.Team)} function rankingKey(r:any){return teamIdOf(r)||`name:${teamNameOf(r).toLowerCase()}`} function collaboratorKey(c:any){return key(c?.collaboratorId??c?.id??c?.["Collaborator ID"])||`name:${key(c?.name??c?.Name).toLowerCase()}`} function simpleKey(x:any,keys:string[]){for(const k of keys){const v=key(x?.[k]);if(v)return v}return""}
+function verifyKeys(expected:any[],actual:any[],name:string,getKey:(v:any)=>string){if(!Array.isArray(actual))throw new Error(`${name}: Google Sheets did not return a valid array.`);const set=new Set(actual.map(getKey).filter(Boolean));const missing=expected.map(getKey).filter(Boolean).find(k=>!set.has(k));if(missing)throw new Error(`${name} was written but read-back does not match. Missing record: ${missing}`)}
+function verifyTeams(expected:any[],actual:any[]){if(!Array.isArray(actual))throw new Error("Teams: Google Sheets did not return a valid array.");const ids=new Set(actual.map(teamIdOf).filter(Boolean).map(v=>v.toLowerCase())),names=new Set(actual.map(teamNameOf).filter(Boolean).map(v=>v.toLowerCase()));for(const t of expected){const id=teamIdOf(t).toLowerCase(),name=teamNameOf(t).toLowerCase();if(!id&&!name)continue;if(id?ids.has(id)||names.has(name):names.has(name))continue;throw new Error(`Teams read-back missing: ${id}|${name}`)}}
+export async function POST(request:NextRequest){try{if(!requireAdmin(request))return NextResponse.json({ok:false,message:"Admin session required."},{status:401,headers:{"Cache-Control":"no-store"}});const payload=await request.json();const url=process.env.GOOGLE_SHEETS_WEBHOOK_URL?.trim();if(!url)return NextResponse.json({ok:false,message:"GOOGLE_SHEETS_WEBHOOK_URL is not configured."},{status:503});const data:Record<string,any[]>={};for(const k of ["teams","rankings","events","announcements","rankingResults","results","news","achievements","collaborators","accounts","submissions","feedback"]){if(Array.isArray(payload?.[k]))data[k]=payload[k]}if(!Object.keys(data).length)return NextResponse.json({ok:false,message:"No supported data section was supplied."},{status:400});if(data.events)validateEvents(data.events);if(data.announcements)validateAnnouncements(data.announcements);if(data.achievements&&data.achievements.length>5000)throw new Error("Achievements exceeds the supported limit.");const saved=await callSheets(url,"POST",data);if(saved?.verified===false||saved?.saved===false)throw new Error(text(saved?.message||"Google Apps Script did not confirm the write."));const fresh=await callSheets(url,"GET");if(data.teams)verifyTeams(data.teams,fresh.teams);if(data.rankings)verifyKeys(data.rankings,fresh.rankings,"Rankings",rankingKey);if(data.events)verifyKeys(data.events,fresh.events,"Events",eventKey);if(data.announcements){const published=data.announcements.filter(a=>a?.published===true);if(published.length)verifyKeys(published,fresh.announcements,"Tournament Announcements",announcementKey)}if(data.rankingResults||data.results)verifyKeys(data.rankingResults||data.results,fresh.rankingResults||fresh.results,"Event Results",resultKey);if(data.news)verifyKeys(data.news,fresh.news,"News",x=>simpleKey(x,["ID","id"]));if(data.achievements)verifyKeys(data.achievements,fresh.achievements,"Achievements",x=>simpleKey(x,["ID","id"]));if(data.collaborators)verifyKeys(data.collaborators,fresh.collaborators,"Collaborators",collaboratorKey);clearSheetPayloadCache();try{revalidateTag("tnffm-sheet")}catch{}for(const path of ["/","/ranking","/teams","/tracked-events","/tournament-announcements","/achievement-showcase","/admin","/admin/tournament-announcements","/admin/achievement-showcase","/collaborators","/news"]){try{revalidatePath(path)}catch{}}return NextResponse.json({...saved,ok:true,saved:true,verified:true,googleSheets:true,readBackVerified:true},{headers:{"Cache-Control":"no-store"}})}catch(error){console.error("Admin Google Sheets save error:",error);return NextResponse.json({ok:false,saved:false,verified:false,readBackVerified:false,message:error instanceof Error?error.message:"Google Sheet update failed."},{status:502,headers:{"Cache-Control":"no-store"}})}}
