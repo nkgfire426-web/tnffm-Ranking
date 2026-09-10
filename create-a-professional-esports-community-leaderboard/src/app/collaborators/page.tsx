@@ -49,7 +49,8 @@ export default async function CollaboratorsPage() {
               const logoUrl = getLogoUrl(c.logoUrl);
               const website = externalUrl(c.url);
               const instagram = externalUrl(c.instagram);
-              const primaryUrl = website || instagram;
+              const otherLink = externalUrl(c.otherLink);
+              const primaryUrl = website || instagram || otherLink;
 
               const card = (
                 <article className="h-full rounded-2xl border border-white/10 bg-white/[0.025] p-5 transition hover:-translate-y-1 hover:border-gold/30 hover:bg-white/[0.04]">
@@ -73,7 +74,8 @@ export default async function CollaboratorsPage() {
                     {c.contact && <p className="truncate text-slate-300"><span className="text-slate-500">Contact:</span> {c.contact}</p>}
                     {website && <a href={website} target="_blank" rel="noopener noreferrer" className="block truncate text-gold hover:underline">Website ↗</a>}
                     {instagram && <a href={instagram} target="_blank" rel="noopener noreferrer" className="block truncate text-slate-300 hover:text-gold">Instagram ↗</a>}
-                    {!c.contact && !website && !instagram && <p className="text-slate-500">TNFFM community collaborator</p>}
+                    {otherLink && <a href={otherLink} target="_blank" rel="noopener noreferrer" className="block truncate text-slate-300 hover:text-gold">Other Link ↗</a>}
+                    {!c.contact && !website && !instagram && !otherLink && <p className="text-slate-500">TNFFM community collaborator</p>}
                   </div>
                 </article>
               );
