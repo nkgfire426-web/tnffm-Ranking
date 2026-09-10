@@ -16,6 +16,7 @@ export type Collaborator = {
   logoUrl: string;
   url: string;
   instagram: string;
+  otherLink: string;
   updatedAt: string;
 };
 
@@ -37,6 +38,7 @@ export function normalizeCollaborator(item: any): Collaborator {
     logoUrl: value(item, "logoUrl", "logoURL", "LogoURL", "logo", "Logo"),
     url: value(item, "url", "website", "Website", "webSite"),
     instagram: value(item, "instagram", "Instagram", "instagramUrl", "Instagram URL"),
+    otherLink: value(item, "otherLink", "Other Link", "other_link", "link", "Link"),
     updatedAt: value(item, "updatedAt", "UpdatedAt", "updated")
   };
 }
