@@ -37,7 +37,10 @@ async function requestImage(url: string) {
     return await fetch(url, {
       cache: "force-cache",
       redirect: "follow",
-      headers: { Accept: "image/avif,image/webp,image/png,image/jpeg,image/gif,image/*,*/*;q=0.8", "User-Agent": "TNFFM-Image-Proxy/1.0" },
+      headers: {
+        Accept: "image/avif,image/webp,image/png,image/jpeg,image/gif,image/*,*/*;q=0.8",
+        "User-Agent": "TNFFM-Image-Proxy/1.1",
+      },
       signal: controller.signal,
     });
   } finally {
@@ -64,11 +67,18 @@ export async function GET(request: NextRequest) {
 
     const resource = drive.resourceKey ? `&resourcekey=${encodeURIComponent(drive.resourceKey)}` : "";
     const id = encodeURIComponent(drive.fileId);
+
+    // Google Drive has multiple delivery endpoints and their behaviour can vary
+    // by file/account. Try the image-oriented endpoints first, then the download
+    // endpoints. All responses are still validated as real image content.
     const candidates = [
+      `https://drive.google.com/thumbnail?sz=w2000&id=${id}${resource}`,
       `https://drive.google.com/thumbnail?id=${id}&sz=w1600${resource}`,
+      `https://lh3.googleusercontent.com/d/${id}=w2000${resource}`,
       `https://drive.google.com/uc?export=view&id=${id}${resource}`,
-      `https://drive.google.com/uc?export=download&id=${id}${resource}`,
+      `https://drive.google.com/uc?id=${id}&export=download${resource}`,
       `https://drive.usercontent.google.com/download?id=${id}&export=view&confirm=t${resource}`,
+      `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t${resource}`,
     ];
 
     let imageBuffer: ArrayBuffer | null = null;
@@ -90,7 +100,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (!imageBuffer) return new NextResponse("Google Drive image could not be loaded. Make sure the file is shared as Anyone with the link → Viewer and keep the original Drive sharing URL.", { status: 502 });
+    if (!imageBuffer) {
+      return new NextResponse(
+        "Google Drive image could not be loaded. Make sure the file is shared as Anyone with the link → Viewer and keep the original Drive sharing URL.",
+        { status: 502 }
+      );
+    }
 
     return new NextResponse(imageBuffer, {
       status: 200,
@@ -102,7 +117,11 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    const message = error instanceof Error && error.name === "AbortError" ? "Image source timed out." : error instanceof Error ? error.message : "Unable to load image";
+    const message = error instanceof Error && error.name === "AbortError"
+      ? "Image source timed out."
+      : error instanceof Error
+        ? error.message
+        : "Unable to load image";
     return new NextResponse(message, { status: 502 });
   }
 }
