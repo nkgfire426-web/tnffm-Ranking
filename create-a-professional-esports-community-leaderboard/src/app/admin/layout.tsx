@@ -2,11 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { BarChart3, CalendarDays, ChevronRight, FileCheck2, Flag, Gauge, Handshake, MessageSquare, Newspaper, ShieldCheck, Trophy, Users, Megaphone, Award } from "lucide-react";
 
-// The main control center owns Teams, Rankings, Events and Event Results.
-// Dedicated content modules use their own routes so every admin function has
-// one clear destination and no sidebar item points to a non-existent page.
 const groups = [
   {
     title: "Management",
@@ -14,8 +12,7 @@ const groups = [
       ["Overview", "/admin", "overview", Gauge],
       ["Teams", "/admin?tab=teams", "teams", Users],
       ["Rankings", "/admin?tab=ranking", "ranking", Trophy],
-      ["Events", "/admin?tab=events", "events", CalendarDays],
-      ["Event Results", "/admin?tab=events", "results", BarChart3],
+      ["Events & Results", "/admin?tab=events", "events", CalendarDays],
     ],
   },
   {
@@ -38,12 +35,19 @@ const groups = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [currentTab, setCurrentTab] = useState<string | null>(null);
+
+  useEffect(() => {
+    const syncTab = () => setCurrentTab(new URLSearchParams(window.location.search).get("tab"));
+    syncTab();
+    window.addEventListener("popstate", syncTab);
+    return () => window.removeEventListener("popstate", syncTab);
+  }, [pathname]);
+
   const active = (href: string, key: string) => {
-    if (pathname === "/admin" && typeof window !== "undefined") {
-      const currentTab = new URLSearchParams(window.location.search).get("tab");
+    if (pathname === "/admin") {
       if (key === "overview") return !currentTab;
       if (["teams", "ranking", "events", "collaborators"].includes(key)) return currentTab === key;
-      if (key === "results") return currentTab === "events";
     }
     if (key === "announcements") return pathname.startsWith("/admin/tournament-announcements");
     if (key === "achievements") return pathname.startsWith("/admin/achievement-showcase");
