@@ -40,7 +40,7 @@ export function normalizeCollaborator(item: any): Collaborator {
     url: value(item, "url", "website", "Website", "webSite"),
     instagram: value(item, "instagram", "Instagram", "instagramUrl", "Instagram URL"),
     otherLink: value(item, "otherLink", "Other Link", "other_link", "link", "Link"),
-    updatedAt: value(item, "updatedAt", "UpdatedAt", "updated")
+    updatedAt: value(item, "updatedAt", "UpdatedAt", "updated"),
   };
 }
 
@@ -82,13 +82,16 @@ async function fetchCollaboratorsFromGoogleSheets(): Promise<Collaborator[] | nu
   const existingRequest = getSheetReadInFlight();
   if (existingRequest) {
     const payload = await existingRequest;
-    return Array.isArray(payload?.collaborators) ? normalizeCollaborators(payload.collaborators) : normalizeCollaborators(getLastSheetPayload()?.collaborators);
+    return Array.isArray(payload?.collaborators)
+      ? normalizeCollaborators(payload.collaborators)
+      : normalizeCollaborators(getLastSheetPayload()?.collaborators);
   }
 
   const request = (async () => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), COLLABORATOR_TIMEOUT_MS);
     try {
+      url.searchParams.set("resource", "collaborators");
       url.searchParams.set("_tnffm_collaborators", `${Date.now()}-${Math.random().toString(36).slice(2)}`);
       const response = await fetch(url.toString(), {
         method: "GET",
@@ -103,8 +106,8 @@ async function fetchCollaboratorsFromGoogleSheets(): Promise<Collaborator[] | nu
       if (!response.ok) throw new Error(`Google Apps Script returned HTTP ${response.status}`);
       const payload = await response.json();
       if (!payload || payload.ok === false) throw new Error(String(payload?.message || "Google Apps Script returned an unsuccessful response"));
-      setCachedSheetPayload(payload);
-      return payload;
+      setCachedSheetPayload({ collaborators: payload.collaborators });
+      return { collaborators: payload.collaborators };
     } catch (error) {
       console.error("Google Sheets collaborators read error:", error);
       return getLastSheetPayload();
