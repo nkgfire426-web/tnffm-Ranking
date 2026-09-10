@@ -1,7 +1,6 @@
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { getCollaborators } from "@/lib/collaborators";
-import { normalizeImageUrl } from "@/components/TeamLogo";
 
 export const metadata = {
   title: "Collaborators | TNFFM",
@@ -11,10 +10,29 @@ export const metadata = {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const DEFAULT_LOGO = "/tnffm-default-logo.svg";
+
+function cleanImageValue(src: unknown) {
+  let value = String(src ?? "").trim();
+  const imageFormula = value.match(/^=IMAGE\(\s*["']([^"']+)["']/i);
+  if (imageFormula?.[1]) value = imageFormula[1].trim();
+  return value.replace(/^['"]|['"]$/g, "").trim();
+}
+
 function getLogoUrl(value: unknown) {
-  const raw = typeof value === "string" ? value.trim() : "";
-  if (!raw) return "";
-  return normalizeImageUrl(raw);
+  const raw = cleanImageValue(value);
+  if (!raw || /^(undefined|null|nan|false)$/i.test(raw)) return DEFAULT_LOGO;
+
+  if (/drive\.google\.com|drive\.usercontent\.google\.com|drive\.googleusercontent\.com/i.test(raw)) {
+    return `/api/team/logo?url=${encodeURIComponent(raw)}`;
+  }
+
+  try {
+    const parsed = new URL(raw);
+    return /^https?:$/.test(parsed.protocol) ? parsed.toString() : DEFAULT_LOGO;
+  } catch {
+    return DEFAULT_LOGO;
+  }
 }
 
 function externalUrl(value: string) {
@@ -50,18 +68,12 @@ export default async function CollaboratorsPage() {
               const website = externalUrl(c.url);
               const instagram = externalUrl(c.instagram);
               const otherLink = externalUrl(c.otherLink);
-              const primaryUrl = website || instagram || otherLink;
 
-              const card = (
-                <article className="h-full rounded-2xl border border-white/10 bg-white/[0.025] p-5 transition hover:-translate-y-1 hover:border-gold/30 hover:bg-white/[0.04]">
+              return (
+                <article key={c.collaboratorId || `${c.name}-${c.role}`} className="h-full rounded-2xl border border-white/10 bg-white/[0.025] p-5 transition hover:-translate-y-1 hover:border-gold/30 hover:bg-white/[0.04]">
                   <div className="flex items-start gap-4">
                     <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/10 bg-black/40 p-2">
-                      {logoUrl ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={logoUrl} alt={`${c.name} logo`} className="h-full w-full object-contain" loading="lazy" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Logo</span>
-                      )}
+                      <img src={logoUrl} alt={`${c.name} logo`} className="h-full w-full object-contain" loading="lazy" referrerPolicy="no-referrer" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <h2 className="truncate font-rajdhani text-2xl font-bold uppercase text-white">{c.name}</h2>
@@ -78,14 +90,6 @@ export default async function CollaboratorsPage() {
                     {!c.contact && !website && !instagram && !otherLink && <p className="text-slate-500">TNFFM community collaborator</p>}
                   </div>
                 </article>
-              );
-
-              return primaryUrl ? (
-                <a key={c.collaboratorId || `${c.name}-${c.role}`} href={primaryUrl} target="_blank" rel="noopener noreferrer" className="block h-full">
-                  {card}
-                </a>
-              ) : (
-                <div key={c.collaboratorId || `${c.name}-${c.role}`} className="h-full">{card}</div>
               );
             })}
           </div>
