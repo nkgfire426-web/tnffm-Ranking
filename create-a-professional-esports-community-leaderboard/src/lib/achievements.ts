@@ -17,17 +17,15 @@ function url(value: unknown) {
   try {
     const parsed = new URL(valueText);
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return "";
-    // Google Drive share pages are HTML, not image files. Convert common share URLs
-    // to the direct-view endpoint so <img> can render them where Drive permissions allow.
+    // Google Drive share links are HTML pages. Use Drive's thumbnail endpoint,
+    // which is more reliable for embedding a publicly shared image in an <img>.
     if (parsed.hostname === "drive.google.com" || parsed.hostname === "www.drive.google.com") {
       const filePath = parsed.pathname.match(/\/file\/d\/([^/]+)/);
       const id = parsed.searchParams.get("id") || filePath?.[1];
-      if (id && (parsed.pathname.includes("/file/d/") || parsed.pathname === "/open" || parsed.pathname === "/uc")) {
-        return `https://drive.google.com/uc?export=view&id=${encodeURIComponent(id)}`;
+      if (id && (parsed.pathname.includes("/file/d/") || parsed.pathname === "/open" || parsed.pathname === "/uc" || parsed.pathname === "/thumbnail")) {
+        return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w1600`;
       }
     }
-    // Google Photos/other share pages cannot reliably be used as image URLs; keep
-    // other HTTPS image hosts unchanged rather than guessing their URL structure.
     return valueText;
   } catch { return ""; }
 }
