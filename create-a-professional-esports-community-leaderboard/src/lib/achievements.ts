@@ -14,8 +14,22 @@ function text(value: unknown) { return String(value ?? "").trim(); }
 function url(value: unknown) {
   const valueText = text(value);
   if (!valueText) return "";
-  try { const parsed = new URL(valueText); return parsed.protocol === "https:" || parsed.protocol === "http:" ? valueText : ""; }
-  catch { return ""; }
+  try {
+    const parsed = new URL(valueText);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return "";
+    // Google Drive share pages are HTML, not image files. Convert common share URLs
+    // to the direct-view endpoint so <img> can render them where Drive permissions allow.
+    if (parsed.hostname === "drive.google.com" || parsed.hostname === "www.drive.google.com") {
+      const filePath = parsed.pathname.match(/\\/file\\/d\\/([^/]+)/);
+      const id = parsed.searchParams.get("id") || filePath?.[1];
+      if (id && (parsed.pathname.includes("/file/d/") || parsed.pathname === "/open" || parsed.pathname === "/uc")) {
+        return `https://drive.google.com/uc?export=view&id=${encodeURIComponent(id)}`;
+      }
+    }
+    // Google Photos/other share pages cannot reliably be used as image URLs; keep
+    // other HTTPS image hosts unchanged rather than guessing their URL structure.
+    return valueText;
+  } catch { return ""; }
 }
 
 export async function getCommunityAchievements(): Promise<CommunityAchievement[]> {
