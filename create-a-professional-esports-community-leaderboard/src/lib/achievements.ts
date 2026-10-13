@@ -20,7 +20,7 @@ function url(value: unknown) {
     // Google Drive share pages are HTML, not image files. Convert common share URLs
     // to the direct-view endpoint so <img> can render them where Drive permissions allow.
     if (parsed.hostname === "drive.google.com" || parsed.hostname === "www.drive.google.com") {
-      const filePath = parsed.pathname.match(/\\/file\\/d\\/([^/]+)/);
+      const filePath = parsed.pathname.match(/\/file\/d\/([^/]+)/);
       const id = parsed.searchParams.get("id") || filePath?.[1];
       if (id && (parsed.pathname.includes("/file/d/") || parsed.pathname === "/open" || parsed.pathname === "/uc")) {
         return `https://drive.google.com/uc?export=view&id=${encodeURIComponent(id)}`;
