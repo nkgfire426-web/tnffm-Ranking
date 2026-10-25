@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowUpRight, Instagram, Phone } from "lucide-react";
+import { ArrowUpRight, Instagram, MessageCircle, Phone } from "lucide-react";
 
 export function Footer() {
   return (
@@ -19,6 +19,7 @@ export function Footer() {
           <div className="flex flex-wrap gap-2 md:justify-end">
             <SocialLink href="https://www.instagram.com/tn_ffm_esports?igsh=MTQ0cmp4Y21oemtuag==" label="Instagram" icon={<Instagram className="h-4 w-4" />} />
             <SocialLink href="https://whatsapp.com/channel/0029Vb6cIDCJENy6ELAAF128" label="WhatsApp" icon={<Phone className="h-4 w-4" />} />
+            <SocialLink href="https://discord.gg/JwvEAtDzE8" label="Discord" icon={<MessageCircle className="h-4 w-4" />} />
             <Link href="/ranking" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.025] px-4 py-3 text-xs font-bold text-slate-300 transition hover:border-gold/25 hover:text-gold">Rankings <ArrowUpRight className="h-3.5 w-3.5" /></Link>
           </div>
         </div>
