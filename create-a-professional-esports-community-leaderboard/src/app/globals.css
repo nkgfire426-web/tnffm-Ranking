@@ -14,4 +14,4 @@
 @media(max-height:500px) and (orientation:landscape) and (max-width:900px){header nav{min-height:50px}main section{padding-top:.75rem!important;padding-bottom:.75rem!important}}
 :focus-visible{outline:2px solid #ffd21f;outline-offset:2px}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
-@media(max-width:768px){input,select,textarea{width:100%}.overflow-x-auto{-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}}
+@media(max-width:768px){.dashboard-inspired-site>section.relative.overflow-hidden.border-b>.relative.mx-auto{padding-top:1.5rem;padding-bottom:1.5rem}.dashboard-inspired-site>section.relative.overflow-hidden.border-b .grid.grid-cols-3{gap:.4rem}}\n@media(max-width:768px){input,select,textarea{width:100%}.overflow-x-auto{-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}}
