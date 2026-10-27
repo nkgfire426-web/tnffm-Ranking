@@ -49,7 +49,7 @@ export function TrackedEventsPreview({ events: initialEvents }: { events: Tracke
           <div>
             <p className="font-rajdhani text-sm font-bold uppercase tracking-[0.25em] text-gold">Verified Logs</p>
             <h2 className="font-rajdhani text-3xl font-bold uppercase text-white">Tracked Events</h2>
-            <p className="mt-1 text-sm text-slate-400">Latest events currently counted in TNFFM tracking.</p>
+            <p className="mt-1 text-sm text-slate-400">Latest events currently counted in TNFFI tracking.</p>
           </div>
           <CalendarDays className="h-6 w-6 shrink-0 text-gold" />
         </div>
@@ -70,7 +70,7 @@ export function TrackedEventsPreview({ events: initialEvents }: { events: Tracke
                   <div className="rounded-md bg-white/[0.03] p-2.5"><p className="uppercase tracking-wider text-slate-500">Prize</p><p className="mt-1 text-slate-200">{event.prize || "-"}</p></div>
                   <div className="rounded-md bg-white/[0.03] p-2.5"><p className="uppercase tracking-wider text-slate-500">Status</p><p className="mt-1 font-semibold text-gold">{event.status || "Pending"}</p></div>
                 </div>
-                <p className="mt-3 truncate text-xs text-slate-500">{event.organizer || "TNFFM"}</p>
+                <p className="mt-3 truncate text-xs text-slate-500">{event.organizer || "TNFFI"}</p>
               </article>
             ))}
           </div>
