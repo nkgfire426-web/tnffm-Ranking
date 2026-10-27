@@ -25,9 +25,9 @@ export default async function NewsPage() {
             </Link>
             <div className="flex items-center gap-3">
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-gold/30 bg-gold/10 text-gold"><Newspaper className="h-5 w-5" /></span>
-              <div><p className="text-xs font-black uppercase tracking-[0.25em] text-gold">TNFFM Community</p><h1 className="font-rajdhani text-3xl font-black uppercase tracking-tight text-white sm:text-4xl">News & Updates</h1></div>
+              <div><p className="text-xs font-black uppercase tracking-[0.25em] text-gold">TNFFI Community</p><h1 className="font-rajdhani text-3xl font-black uppercase tracking-tight text-white sm:text-4xl">News & Updates</h1></div>
             </div>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">Tournament announcements, results, community updates and the latest official TNFFM news in one place.</p>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">Tournament announcements, results, community updates and the latest official TNFFI news in one place.</p>
           </div>
           <div className="inline-flex w-fit items-center gap-2 rounded-xl border border-white/10 bg-black/35 px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-400"><Sparkles className="h-4 w-4 text-gold" /> {news.length} {news.length === 1 ? "Update" : "Updates"}</div>
         </div>
