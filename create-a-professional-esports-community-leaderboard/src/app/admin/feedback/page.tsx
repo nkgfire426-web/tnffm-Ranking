@@ -88,7 +88,7 @@ export default function AdminFeedbackPage() {
       <main className="mx-auto grid min-h-[75vh] max-w-md place-items-center px-4">
         <section className="glass w-full rounded-2xl p-6">
           <Lock className="mb-4 h-8 w-8 text-gold" />
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-gold">TNFFM Admin</p>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-gold">TNFFI Admin</p>
           <h1 className="mt-1 font-rajdhani text-4xl font-bold uppercase text-white">Feedback Inbox</h1>
           <p className="mt-2 text-sm text-slate-400">Admin access is required to view team feedback.</p>
           <input value={password} onChange={(event) => setPassword(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") login(); }} type="password" placeholder="Admin password" className="mt-6 w-full rounded-lg border border-white/10 bg-black/45 px-4 py-3 text-white outline-none focus:border-gold/60" />
@@ -104,7 +104,7 @@ export default function AdminFeedbackPage() {
     <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-gold">TNFFM Admin</p>
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-gold">TNFFI Admin</p>
           <h1 className="font-rajdhani text-4xl font-bold uppercase text-white">Team Feedback</h1>
           <p className="mt-2 text-sm text-slate-400">Review suggestions, issues, and requests submitted from team dashboards.</p>
         </div>
