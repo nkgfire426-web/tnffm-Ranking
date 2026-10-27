@@ -3,7 +3,7 @@ import type { EventResult, TrackedEvent } from "./events";
 
 export const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
-// TNFFM Community Ranking points:
+// TNFFI Community Ranking points:
 // 1st = 100, 2nd = 70, 3rd = 50, 4th-5th = 25, 6th-18th = 15.
 // Official-match finalists receive the separate 100-point official bonus.
 export function calculateCommunityPoints(team: RawTeam) {
