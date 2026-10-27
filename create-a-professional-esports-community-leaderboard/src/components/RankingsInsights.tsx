@@ -16,9 +16,9 @@ export function RankingsInsights({ teams, news }: { teams: RankedTeam[]; news: T
       <div className="glass rounded-xl p-6 sm:p-8">
         <div className="mb-7 flex items-center justify-between gap-4">
           <div>
-            <p className="font-rajdhani text-sm font-bold uppercase tracking-[0.25em] text-gold">TNFFM News</p>
+            <p className="font-rajdhani text-sm font-bold uppercase tracking-[0.25em] text-gold">TNFFI News</p>
             <h2 className="font-rajdhani text-4xl font-bold uppercase text-white sm:text-5xl">News & Updates</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Latest tournament announcements, community updates and TNFFM news.</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Latest tournament announcements, community updates and TNFFI news.</p>
           </div>
           <TrendingUp className="h-8 w-8 shrink-0 text-red-400" />
         </div>
