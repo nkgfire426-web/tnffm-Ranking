@@ -3,8 +3,8 @@ import { Footer } from "@/components/Footer";
 import { getCollaborators } from "@/lib/collaborators";
 
 export const metadata = {
-  title: "Collaborators | TNFFM",
-  description: "Sponsors and partners supporting TNFFM community events"
+  title: "Collaborators | TNFFI",
+  description: "Sponsors and partners supporting TNFFI community events"
 };
 
 export const dynamic = "force-dynamic";
@@ -50,10 +50,10 @@ export default async function CollaboratorsPage() {
       <Header />
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
         <div className="mb-10 text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-gold">TNFFM Community</p>
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-gold">TNFFI Community</p>
           <h1 className="mt-2 font-rajdhani text-4xl font-black uppercase sm:text-6xl">Our Collaborators</h1>
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
-            Sponsors, partners, and community collaborators supporting TNFFM events and esports growth.
+            Sponsors, partners, and community collaborators supporting TNFFI events and esports growth.
           </p>
         </div>
 
@@ -87,7 +87,7 @@ export default async function CollaboratorsPage() {
                     {website && <a href={website} target="_blank" rel="noopener noreferrer" className="block truncate text-gold hover:underline">Website ↗</a>}
                     {instagram && <a href={instagram} target="_blank" rel="noopener noreferrer" className="block truncate text-slate-300 hover:text-gold">Instagram ↗</a>}
                     {otherLink && <a href={otherLink} target="_blank" rel="noopener noreferrer" className="block truncate text-slate-300 hover:text-gold">Other Link ↗</a>}
-                    {!c.contact && !website && !instagram && !otherLink && <p className="text-slate-500">TNFFM community collaborator</p>}
+                    {!c.contact && !website && !instagram && !otherLink && <p className="text-slate-500">TNFFI community collaborator</p>}
                   </div>
                 </article>
               );
