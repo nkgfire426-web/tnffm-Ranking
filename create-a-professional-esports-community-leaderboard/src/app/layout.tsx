@@ -11,9 +11,9 @@ const siteLogo = "/brand/tnffm-logo.png";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://tnffm-ranking.vercel.app"),
-  title: "TNFFM | TamilNadu Free Fire Max Esports Official",
-  description: "Official TamilNadu Free Fire Max Esports platform for rankings, tournament results, teams, achievements and community updates.",
-  keywords: ["TNFFM", "TamilNadu Free Fire Max Esports", "Free Fire MAX", "esports", "tournament rankings"],
+  title: "TNFFI | Tamilnadu Free Fire India Esports",
+  description: "Official Tamilnadu Free Fire India Esports platform for rankings, tournament results, teams, achievements and community updates.",
+  keywords: ["TNFFI", "Tamilnadu Free Fire India Esports", "Free Fire MAX", "esports", "tournament rankings"],
   manifest: "/site.webmanifest",
   icons: {
     icon: [{ url: siteLogo, type: "image/png", sizes: "any" }],
@@ -21,17 +21,17 @@ export const metadata: Metadata = {
     apple: [{ url: siteLogo, type: "image/png" }]
   },
   openGraph: {
-    title: "TNFFM | TamilNadu Free Fire Max Esports Official",
-    description: "Official TNFFM rankings, tournament results, teams and esports updates.",
+    title: "TNFFI | Tamilnadu Free Fire India Esports",
+    description: "Official TNFFI rankings, tournament results, teams and esports updates.",
     type: "website",
     url: "https://tnffm-ranking.vercel.app",
-    images: [{ url: siteLogo, width: 512, height: 512, alt: "TNFFM official logo" }]
+    images: [{ url: siteLogo, width: 512, height: 512, alt: "TNFFI official logo" }]
   },
   twitter: {
     card: "summary",
-    title: "TNFFM | TamilNadu Free Fire Max Esports Official",
-    description: "Official TNFFM rankings, tournament results, teams and esports updates.",
-    images: [{ url: siteLogo, alt: "TNFFM official logo" }]
+    title: "TNFFI | Tamilnadu Free Fire India Esports",
+    description: "Official TNFFI rankings, tournament results, teams and esports updates.",
+    images: [{ url: siteLogo, alt: "TNFFI official logo" }]
   }
 };
 
