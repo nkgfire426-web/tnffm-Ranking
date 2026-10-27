@@ -19,7 +19,7 @@ export function Podium({ teams }: { teams: RankedTeam[] }) {
           <p className="font-rajdhani text-sm font-bold uppercase tracking-[0.25em] text-gold">Top 3 Podium</p>
           <h2 className="font-rajdhani text-4xl font-bold uppercase text-white">Community Elite</h2>
         </div>
-        <p className="max-w-xl text-sm text-slate-400">Ranked by official TNFFM Community Rankings and placement-based Community Score.</p>
+        <p className="max-w-xl text-sm text-slate-400">Ranked by official TNFFI Community Rankings and placement-based Community Score.</p>
       </div>
 
       {top.length > 0 ? (
