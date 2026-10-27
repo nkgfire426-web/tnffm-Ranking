@@ -1,6 +1,6 @@
-# TNFFM Community Rankings
+# TNFFI Community Rankings
 
-Professional Free Fire MAX community leaderboard for **Tamilnadu Free Fire Max Esports (TNFFM)**, built with Next.js, TypeScript, Tailwind CSS, Framer Motion, and Google Sheets.
+Professional Free Fire MAX community leaderboard for **Tamilnadu Free Fire India Esports (TNFFI)**, built with Next.js, TypeScript, Tailwind CSS, Framer Motion, and Google Sheets.
 
 ## Features
 
