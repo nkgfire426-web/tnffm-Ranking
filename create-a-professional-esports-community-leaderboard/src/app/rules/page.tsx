@@ -9,8 +9,8 @@ const eventRules = [
   "Only finale or grand finals results are used for ranking.",
   "Events involving cheating, hacking, or result manipulation will be excluded.",
   "Only fully completed events will be counted.",
-  "TNFFM rankings are not limited to Tamil Nadu events; eligible grand finals results may be submitted from anywhere.",
-  "TNFFM reserves the right to approve or reject any submitted event."
+  "TNFFI rankings are not limited to Tamil Nadu events; eligible grand finals results may be submitted from anywhere.",
+  "TNFFI reserves the right to approve or reject any submitted event."
 ];
 
 const teamRules = [
@@ -29,8 +29,8 @@ const penalties = [
 ];
 
 export const metadata = {
-  title: "Rules and Regulations | TNFFM Community Rankings",
-  description: "Official TNFFM event eligibility, team eligibility, and penalty rules."
+  title: "Rules and Regulations | TNFFI Community Rankings",
+  description: "Official TNFFI event eligibility, team eligibility, and penalty rules."
 };
 
 export default function RulesPage() {
