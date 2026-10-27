@@ -36,7 +36,7 @@ export function NewsCard({ item, index }: { item: NewsItem; index: number }) {
         {!imageFailed && imageUrl ? (
           <img
             src={imageUrl}
-            alt={item.title || "TNFFM News"}
+            alt={item.title || "TNFFI News"}
             loading={index < 3 ? "eager" : "lazy"}
             referrerPolicy="no-referrer"
             decoding="async"
@@ -57,7 +57,7 @@ export function NewsCard({ item, index }: { item: NewsItem; index: number }) {
       <div className="flex flex-1 flex-col p-5">
         <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
           <CalendarDays className="h-3.5 w-3.5" />
-          <span>{formatDate(item.date) || "TNFFM Update"}</span>
+          <span>{formatDate(item.date) || "TNFFI Update"}</span>
         </div>
         <h2 className="font-rajdhani text-2xl font-bold leading-tight text-white transition group-hover:text-gold">{item.title}</h2>
 
@@ -72,7 +72,7 @@ export function NewsCard({ item, index }: { item: NewsItem; index: number }) {
             )}
           </div>
         ) : (
-          <p className="mt-3 text-sm text-slate-500">Official TNFFM community update.</p>
+          <p className="mt-3 text-sm text-slate-500">Official TNFFI community update.</p>
         )}
 
         <div className="mt-auto pt-5">
@@ -81,7 +81,7 @@ export function NewsCard({ item, index }: { item: NewsItem; index: number }) {
               Open Full Update <ExternalLink className="h-4 w-4" />
             </a>
           ) : (
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-500">Official TNFFM News</div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-slate-500">Official TNFFI News</div>
           )}
         </div>
       </div>
