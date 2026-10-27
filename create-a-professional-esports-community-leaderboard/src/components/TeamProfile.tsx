@@ -21,7 +21,7 @@ export function TeamProfile({ team }: { team: RawTeam & { slug?: string } }) {
   const bannerSrc = normalizeImageUrl(team.bannerUrl);
 
   const history: [string, string, LucideIcon][] = [
-    ["Championship History", `${team.championships || 0} title wins across eligible TNFFM events`, Trophy],
+    ["Championship History", `${team.championships || 0} title wins across eligible TNFFI events`, Trophy],
     ["Tournament History", `${eventsPlayed} eligible events and ${top3Finishes} podium finishes`, Award]
   ];
 
@@ -48,7 +48,7 @@ export function TeamProfile({ team }: { team: RawTeam & { slug?: string } }) {
                 <h1 className="font-rajdhani text-5xl font-bold uppercase text-white sm:text-7xl">{team.teamName}</h1>
               </div>
             </div>
-            <p className="text-lg text-slate-300">{team.description || "A registered Free Fire MAX community team in the TNFFM Tamil Community Showcase."}</p>
+            <p className="text-lg text-slate-300">{team.description || "A registered Free Fire MAX community team in the TNFFI Tamil Community Showcase."}</p>
           </motion.div>
         </div>
 
