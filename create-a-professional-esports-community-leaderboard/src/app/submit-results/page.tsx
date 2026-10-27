@@ -21,12 +21,12 @@ export default async function SubmitResultsPage() {
         <div className="absolute inset-0 bg-[url('/brand/tnffm-banner.jpg')] bg-cover bg-center" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#050507]/98 via-[#050507]/92 to-[#050507]/70" />
         <div className="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
-          <p className="font-rajdhani text-xs font-black uppercase tracking-[.28em] text-gold">TNFFM • Official Submission</p>
+          <p className="font-rajdhani text-xs font-black uppercase tracking-[.28em] text-gold">TNFFI • Official Submission</p>
           <h1 className="mt-3 max-w-4xl font-rajdhani text-4xl font-black uppercase leading-[.9] sm:text-6xl">
             Submit <span className="gold-text">Tournament Results</span>
           </h1>
           <p className="mt-5 max-w-3xl text-sm leading-6 text-slate-300 sm:text-base">
-            Registered teams can submit their official completed tournament Finals / Grand Finals result for TNFFM assessment. No team login is required.
+            Registered teams can submit their official completed tournament Finals / Grand Finals result for TNFFI assessment. No team login is required.
           </p>
         </div>
       </section>
@@ -37,7 +37,7 @@ export default async function SubmitResultsPage() {
           <div className="rounded-2xl border border-white/10 bg-white/[.025] p-5">
             <h2 className="font-rajdhani text-xl font-bold uppercase">What happens next?</h2>
             <p className="mt-2 text-sm leading-6 text-slate-400">
-              Your submission is stored as Pending. TNFFM reviews the final result and supporting proof before it is considered for ranking.
+              Your submission is stored as Pending. TNFFI reviews the final result and supporting proof before it is considered for ranking.
             </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/[.025] p-5">
