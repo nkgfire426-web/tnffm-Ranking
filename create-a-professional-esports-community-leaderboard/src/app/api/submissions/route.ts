@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   let teams;
   try { teams = await getPublicRegisteredTeams(); } catch { return NextResponse.json({ ok: false, message: "Unable to verify the registered team list right now." }, { status: 503 }); }
   const team = teams.find((item) => String(item.teamName).trim().toLowerCase() === teamName.toLowerCase() && String(item.registrationStatus || "Registered").toLowerCase() !== "hidden" && String(item.status || "Active").toLowerCase() !== "banned");
-  if (!team) return NextResponse.json({ ok: false, message: "That team is not currently registered for TNFFM ranking submissions." }, { status: 400 });
+  if (!team) return NextResponse.json({ ok: false, message: "That team is not currently registered for TNFFI ranking submissions." }, { status: 400 });
 
   const finalLeaderboard = `Position #${finalPosition} — ${teamFinalPoints} points`;
   return callSheets({ action: "submitFinalLeaderboard", teamName: team.teamName, teamSlug: String((team as any).slug || ""), tournamentName, tournamentDate, organizerName, prizePool, finalPosition, finalLeaderboard, teamFinalPoints, proofUrl });
