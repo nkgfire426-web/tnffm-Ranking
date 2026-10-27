@@ -60,7 +60,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex h-20 items-center border-b border-white/10 px-5">
           <Link href="/admin" className="flex items-center gap-3">
             <div className="grid h-10 w-10 place-items-center rounded-xl bg-gold text-black"><Flag className="h-5 w-5" /></div>
-            <div><div className="font-rajdhani text-xl font-black uppercase">TNFFM</div><div className="text-[9px] font-bold uppercase tracking-[.25em] text-slate-500">Admin Control</div></div>
+            <div><div className="font-rajdhani text-xl font-black uppercase">TNFFI</div><div className="text-[9px] font-bold uppercase tracking-[.25em] text-slate-500">Admin Control</div></div>
           </Link>
         </div>
         <nav className="flex-1 overflow-y-auto px-3 py-5">
@@ -75,7 +75,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
     </aside>
     <div className="lg:pl-[270px]">
-      <div className="border-b border-white/10 bg-[#09090b]/80 px-4 py-3 backdrop-blur-xl lg:hidden"><Link href="/admin" className="font-rajdhani text-xl font-black uppercase">TNFFM <span className="text-gold">Admin</span></Link></div>
+      <div className="border-b border-white/10 bg-[#09090b]/80 px-4 py-3 backdrop-blur-xl lg:hidden"><Link href="/admin" className="font-rajdhani text-xl font-black uppercase">TNFFI <span className="text-gold">Admin</span></Link></div>
       {children}
     </div>
   </div>;
