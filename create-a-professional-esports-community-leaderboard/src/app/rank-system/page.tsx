@@ -17,8 +17,8 @@ const tieBreakers = [
 ];
 
 export const metadata = {
-  title: "Rank System | TNFFM Community Rankings",
-  description: "Official TNFFM ranking rules for recognized collaborator events."
+  title: "Rank System | TNFFI Community Rankings",
+  description: "Official TNFFI ranking rules for recognized collaborator events."
 };
 
 export default function RankSystemPage() {
@@ -26,10 +26,10 @@ export default function RankSystemPage() {
     <main className="min-w-0 overflow-x-hidden">
       <Header />
       <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-        <p className="font-rajdhani text-xs font-bold uppercase tracking-[0.2em] text-gold sm:text-sm sm:tracking-[0.25em]">Official TNFFM</p>
+        <p className="font-rajdhani text-xs font-bold uppercase tracking-[0.2em] text-gold sm:text-sm sm:tracking-[0.25em]">Official TNFFI</p>
         <h1 className="mt-1 font-rajdhani text-4xl font-bold uppercase leading-none text-white sm:text-5xl">Official Ranking System</h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400 sm:text-base">
-          TNFFM competitive ranking is separate from team registration. Only verified final standings from official events created or approved through TNFFM Collaborators can contribute ranking points. A team can be registered in the Tamil Community Showcase without being ranked.
+          TNFFI competitive ranking is separate from team registration. Only verified final standings from official events created or approved through TNFFI Collaborators can contribute ranking points. A team can be registered in the Tamil Community Showcase without being ranked.
         </p>
 
         <div className="mt-7 hidden overflow-hidden rounded-xl glass sm:block">
@@ -46,11 +46,11 @@ export default function RankSystemPage() {
         <div className="mt-6 grid min-w-0 gap-4 lg:mt-8 lg:grid-cols-2 lg:gap-5">
           <div className="glass min-w-0 rounded-xl p-4 sm:p-6">
             <h2 className="font-rajdhani text-2xl font-bold uppercase text-white sm:text-3xl">How a Result Becomes Ranking</h2>
-            <div className="mt-4 space-y-2.5 text-sm leading-6 text-slate-300 sm:mt-5 sm:text-base"><p><b className="text-gold">1.</b> TNFFM Collaborator creates or approves the event.</p><p><b className="text-gold">2.</b> The event becomes an official TNFFM ranking event.</p><p><b className="text-gold">3.</b> Final standings are verified.</p><p><b className="text-gold">4.</b> TNFFM awards points from the fixed table above.</p><p><b className="text-gold">5.</b> The verified points are added to the team's official ranking record.</p></div>
+            <div className="mt-4 space-y-2.5 text-sm leading-6 text-slate-300 sm:mt-5 sm:text-base"><p><b className="text-gold">1.</b> TNFFI Collaborator creates or approves the event.</p><p><b className="text-gold">2.</b> The event becomes an official TNFFI ranking event.</p><p><b className="text-gold">3.</b> Final standings are verified.</p><p><b className="text-gold">4.</b> TNFFI awards points from the fixed table above.</p><p><b className="text-gold">5.</b> The verified points are added to the team's official ranking record.</p></div>
           </div>
           <div className="glass min-w-0 rounded-xl p-4 sm:p-6">
             <h2 className="font-rajdhani text-2xl font-bold uppercase text-white sm:text-3xl">Registration Is Separate</h2>
-            <p className="mt-3 break-words text-sm leading-6 text-slate-300 sm:mt-4 sm:text-base sm:leading-7">Registered teams appear in the Tamil Community Teams Showcase. Registration alone gives no ranking points. Teams become ranked only after verified results from eligible TNFFM Collaborator events.</p>
+            <p className="mt-3 break-words text-sm leading-6 text-slate-300 sm:mt-4 sm:text-base sm:leading-7">Registered teams appear in the Tamil Community Teams Showcase. Registration alone gives no ranking points. Teams become ranked only after verified results from eligible TNFFI Collaborator events.</p>
           </div>
         </div>
 
