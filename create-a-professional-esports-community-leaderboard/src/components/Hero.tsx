@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowRight, CalendarDays, RadioTower, Send, Trophy, ChevronUp, ChevronDown } from "lucide-react";
+import { ArrowRight, CalendarDays, RadioTower, Send, Trophy, ChevronUp, ChevronDown, Newspaper } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { RankedTeam } from "@/lib/types";
@@ -57,12 +57,12 @@ export function Hero({ teams, news = [] }: { teams: RankedTeam[]; news?: Tournam
       <motion.div className="glass relative min-w-0 w-full overflow-hidden rounded-3xl border-white/10 bg-black/50 p-4 shadow-[0_30px_90px_rgba(0,0,0,.4)] sm:p-5" initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15, duration: 0.65 }}>
         <div className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-gold to-transparent" />
         <div className="flex items-center justify-between border-b border-white/10 px-1 pb-4"><div><p className="text-[10px] font-black uppercase tracking-[.24em] text-gold">TNFFI Feed</p><h2 className="mt-1 font-rajdhani text-2xl font-bold text-white sm:text-3xl">Latest Updates</h2></div><Trophy className="h-6 w-6 text-gold" /></div>
-        <div className="relative mt-4 min-h-[300px] overflow-hidden sm:min-h-[330px]" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPaused(false); }}>
+        <div className="relative mt-4 min-h-[355px] overflow-hidden sm:min-h-[375px]" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPaused(false); }}>
           {currentUpdate ? <AnimatePresence mode="wait" initial={false}>
             <motion.div key={currentUpdate.id || currentUpdate.title + activeUpdate} initial={{ opacity: 0, y: 24, filter: "blur(3px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} exit={{ opacity: 0, y: -24, filter: "blur(3px)" }} transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }} className="absolute inset-x-0 top-0">
               <NewsItem item={currentUpdate} />
             </motion.div>
-          </AnimatePresence> : <div className="flex min-h-[300px] flex-col justify-center rounded-2xl border border-white/10 bg-white/[.025] p-5 sm:min-h-[330px]"><p className="text-[10px] font-black uppercase tracking-[.2em] text-slate-500">No published updates</p><h3 className="mt-2 font-rajdhani text-xl font-bold text-white">No news is currently published</h3><p className="mt-2 text-sm leading-6 text-slate-400">Published news updates will appear here automatically.</p></div>}
+          </AnimatePresence> : <div className="flex min-h-[355px] flex-col justify-center rounded-2xl border border-white/10 bg-white/[.025] p-5 sm:min-h-[375px]"><p className="text-[10px] font-black uppercase tracking-[.2em] text-slate-500">No published updates</p><h3 className="mt-2 font-rajdhani text-xl font-bold text-white">No news is currently published</h3><p className="mt-2 text-sm leading-6 text-slate-400">Published news updates will appear here automatically.</p></div>}
         </div>
         <div className="mt-3 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-1.5" aria-label="News update position">
@@ -83,9 +83,9 @@ function InfoCard({ label, value }: { label: string; value: string }) {
 
 function NewsItem({ item }: { item: TournamentNews }) {
   const imageSrc = item.imageUrl ? normalizeImageUrl(item.imageUrl) : "";
-  return <article className="overflow-hidden rounded-2xl border border-white/10 bg-white/[.025]">
-    {imageSrc && <div className="aspect-[16/7] w-full overflow-hidden bg-black"><img src={imageSrc} alt={item.title} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" /></div>}
-    <div className="flex min-h-[205px] flex-col p-4 sm:min-h-[225px]">
+  return <article className="flex h-full min-h-[355px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[.025] sm:min-h-[375px]">
+    <div className="h-32 w-full shrink-0 overflow-hidden bg-gradient-to-br from-gold/10 via-black to-black sm:h-36">{imageSrc ? <img src={imageSrc} alt={item.title} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" /> : <div className="grid h-full place-items-center"><Newspaper className="h-10 w-10 text-gold/30" /></div>}</div>
+    <div className="flex min-h-0 flex-1 flex-col p-4">
       <div className="flex items-center gap-2"><div className="shrink-0 rounded-lg border border-gold/20 bg-gold/5 p-2"><CalendarDays className="h-4 w-4 text-gold" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-[9px] font-black uppercase tracking-[.18em] text-gold">{item.type || "Update"}</span>{item.date && <span className="text-[10px] text-slate-500">{item.date}</span>}</div></div></div>
       <h3 className="mt-3 line-clamp-2 min-h-[3.2rem] font-rajdhani text-xl font-bold leading-tight text-white sm:text-2xl">{item.title}</h3>
       <p className="mt-2 line-clamp-3 min-h-[3.75rem] text-sm leading-5 text-slate-400">{item.description || "Official TNFFI community news and esports update."}</p>
