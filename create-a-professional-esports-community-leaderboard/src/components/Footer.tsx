@@ -11,8 +11,8 @@ export function Footer() {
         <div className="grid gap-8 md:grid-cols-[1fr_auto] md:items-end">
           <div>
             <Link href="/" className="inline-flex items-center gap-3 rounded-xl transition hover:opacity-90">
-              <span className="grid h-11 w-11 place-items-center rounded-xl border border-gold/30 bg-black p-1.5"><Image src="/brand/tnffm-logo.png" alt="TNFFM" width={44} height={44} className="h-full w-full object-contain" /></span>
-              <span><span className="block font-rajdhani text-xl font-black text-white">TNFFM</span><span className="block text-[9px] font-bold uppercase tracking-[.24em] text-gold">Community Rankings</span></span>
+              <span className="grid h-11 w-11 place-items-center rounded-xl border border-gold/30 bg-black p-1.5"><Image src="/brand/tnffm-logo.png" alt="TNFFI" width={44} height={44} className="h-full w-full object-contain" /></span>
+              <span><span className="block font-rajdhani text-xl font-black text-white">TNFFI</span><span className="block text-[9px] font-bold uppercase tracking-[.24em] text-gold">Community Rankings</span></span>
             </Link>
             <p className="mt-4 max-w-xl text-sm leading-6 text-slate-500">A community-first competitive platform for tracking verified Free Fire MAX esports performance, tournament results and team achievements.</p>
           </div>
@@ -23,7 +23,7 @@ export function Footer() {
             <Link href="/ranking" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.025] px-4 py-3 text-xs font-bold text-slate-300 transition hover:border-gold/25 hover:text-gold">Rankings <ArrowUpRight className="h-3.5 w-3.5" /></Link>
           </div>
         </div>
-        <div className="mt-8 flex flex-col gap-2 border-t border-white/[.06] pt-5 text-[10px] font-bold uppercase tracking-[.16em] text-slate-600 sm:flex-row sm:items-center sm:justify-between"><span>TNFFM Community Rankings</span><span>Building a healthy competitive community</span></div>
+        <div className="mt-8 flex flex-col gap-2 border-t border-white/[.06] pt-5 text-[10px] font-bold uppercase tracking-[.16em] text-slate-600 sm:flex-row sm:items-center sm:justify-between"><span>TNFFI Community Rankings</span><span>Building a healthy competitive community</span></div>
       </div>
     </footer>
   );
