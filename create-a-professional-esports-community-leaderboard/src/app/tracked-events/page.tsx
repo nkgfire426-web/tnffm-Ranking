@@ -2,8 +2,8 @@ import { Header } from "@/components/Header";
 import { getTrackedEvents } from "@/lib/events";
 
 export const metadata = {
-  title: "Tracked Events | TNFFM Community Rankings",
-  description: "Verified and official events tracked for TNFFM Community Rankings."
+  title: "Tracked Events | TNFFI Community Rankings",
+  description: "Verified and official events tracked for TNFFI Community Rankings."
 };
 
 // Events are backed by live Google Sheets data; keep this route dynamic.
