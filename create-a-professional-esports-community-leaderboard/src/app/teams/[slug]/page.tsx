@@ -10,8 +10,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const team = await getUnifiedTeamBySlug(slug);
   return {
-    title: team ? `${team.teamName} | TNFFM Community Rankings` : "Team Profile | TNFFM Community Rankings",
-    description: team ? `${team.teamName} profile, current registered-team details, competitive history, and TNFFM community points.` : "TNFFM team profile."
+    title: team ? `${team.teamName} | TNFFI Community Rankings` : "Team Profile | TNFFI Community Rankings",
+    description: team ? `${team.teamName} profile, current registered-team details, competitive history, and TNFFI community points.` : "TNFFI team profile."
   };
 }
 
