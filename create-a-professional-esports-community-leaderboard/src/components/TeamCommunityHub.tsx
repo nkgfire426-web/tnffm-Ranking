@@ -14,11 +14,11 @@ export function TeamCommunityHub({ teams }: Props) {
 
   const tools = [
     { href: "/team-details", label: "Team Details", description: "View team profile, roster and public statistics.", icon: Users },
-    { href: "/ranking", label: "Official Ranking", description: "Check your current TNFFM community position and score.", icon: Trophy },
-    { href: "/tracked-events", label: "Official Events", description: "Explore events currently tracked by TNFFM.", icon: CalendarDays },
+    { href: "/ranking", label: "Official Ranking", description: "Check your current TNFFI community position and score.", icon: Trophy },
+    { href: "/tracked-events", label: "Official Events", description: "Explore events currently tracked by TNFFI.", icon: CalendarDays },
     { href: "/tournament-announcements", label: "Tournament Announcements", description: "See upcoming and published tournament information.", icon: Megaphone },
     { href: "/news", label: "News & Updates", description: "Keep up with community updates and tournament news.", icon: Newspaper },
-    { href: "/rank-system", label: "Rank System", description: "Understand how TNFFM ranking points and placements work.", icon: BarChart3 },
+    { href: "/rank-system", label: "Rank System", description: "Understand how TNFFI ranking points and placements work.", icon: BarChart3 },
   ];
 
   return (
