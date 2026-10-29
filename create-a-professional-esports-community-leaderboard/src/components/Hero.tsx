@@ -84,9 +84,9 @@ function InfoCard({ label, value }: { label: string; value: string }) {
 
 function NewsItem({ item }: { item: TournamentNews }) {
   const imageSrc = item.imageUrl ? normalizeImageUrl(item.imageUrl) : "";
-  return <article className="flex h-full min-h-[360px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[.025] sm:min-h-[390px]">
-    <div className="h-28 w-full shrink-0 overflow-hidden bg-gradient-to-br from-gold/10 via-black to-black sm:h-36">{imageSrc ? <img src={imageSrc} alt={item.title} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" /> : <div className="grid h-full place-items-center"><Newspaper className="h-10 w-10 text-gold/30" /></div>}</div>
-    <div className="flex min-h-0 flex-1 flex-col p-3.5 sm:p-4">
+  return <article className="flex h-full min-h-[360px] flex-col overflow-hidden sm:min-h-[390px]">
+    <div className="h-32 w-full shrink-0 overflow-hidden bg-gradient-to-br from-gold/10 via-black to-black sm:h-40">{imageSrc ? <img src={imageSrc} alt={item.title} className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" /> : <div className="grid h-full place-items-center"><Newspaper className="h-10 w-10 text-gold/30" /></div>}</div>
+    <div className="flex min-h-0 flex-1 flex-col px-1 pb-1 pt-4 sm:px-2 sm:pb-2">
       <div className="flex items-center gap-2"><div className="shrink-0 rounded-lg border border-gold/20 bg-gold/5 p-2"><CalendarDays className="h-4 w-4 text-gold" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-[9px] font-black uppercase tracking-[.18em] text-gold">{item.type || "Update"}</span>{item.date && <span className="text-[10px] text-slate-500">{item.date}</span>}</div></div></div>
       <h3 className="mt-3 line-clamp-2 min-h-[2.8rem] font-rajdhani text-xl font-bold leading-tight text-white sm:min-h-[3.2rem] sm:text-2xl">{item.title}</h3>
       <p className="mt-2 line-clamp-3 min-h-[3.5rem] text-sm leading-5 text-slate-400 sm:min-h-[3.75rem]">{item.description || "Official TNFFI community news and esports update."}</p>
