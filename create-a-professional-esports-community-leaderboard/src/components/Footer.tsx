@@ -11,7 +11,7 @@ export function Footer() {
         <div className="grid gap-8 md:grid-cols-[1fr_auto] md:items-end">
           <div>
             <Link href="/" className="inline-flex items-center gap-3 rounded-xl transition hover:opacity-90">
-              <span className="grid h-11 w-11 place-items-center rounded-xl border border-gold/30 bg-black p-1.5"><Image src="/brand/tnffm-logo.png" alt="TNFFI" width={44} height={44} className="h-full w-full object-contain" /></span>
+              <span className="grid h-11 w-11 place-items-center rounded-xl border border-gold/30 bg-black p-1.5"><Image src="/brand/tnffi-esports-logo.svg" alt="TNFFI" width={44} height={44} className="h-full w-full object-contain" /></span>
               <span><span className="block font-rajdhani text-xl font-black text-white">TNFFI</span><span className="block text-[9px] font-bold uppercase tracking-[.24em] text-gold">Community Rankings</span></span>
             </Link>
             <p className="mt-4 max-w-xl text-sm leading-6 text-slate-500">A community-first competitive platform for tracking verified Free Fire MAX esports performance, tournament results and team achievements.</p>
