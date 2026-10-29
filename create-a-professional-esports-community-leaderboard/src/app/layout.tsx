@@ -7,7 +7,7 @@ import { Footer } from "@/components/Footer";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const rajdhani = Rajdhani({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-rajdhani" });
 
-const siteLogo = "/brand/tnffm-logo.png";
+const siteLogo = "/brand/tnffi-esports-logo.svg";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://tnffm-ranking.vercel.app"),
@@ -16,9 +16,9 @@ export const metadata: Metadata = {
   keywords: ["TNFFI", "Tamilnadu Free Fire India Esports", "Free Fire MAX", "esports", "tournament rankings"],
   manifest: "/site.webmanifest",
   icons: {
-    icon: [{ url: siteLogo, type: "image/png", sizes: "any" }],
-    shortcut: [{ url: siteLogo, type: "image/png" }],
-    apple: [{ url: siteLogo, type: "image/png" }]
+    icon: [{ url: siteLogo, type: "image/svg+xml", sizes: "any" }],
+    shortcut: [{ url: siteLogo, type: "image/svg+xml" }],
+    apple: [{ url: siteLogo, type: "image/svg+xml" }]
   },
   openGraph: {
     title: "TNFFI | Tamilnadu Free Fire India Esports",
